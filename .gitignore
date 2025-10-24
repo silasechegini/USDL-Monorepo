@@ -1,3 +1,137 @@
-node_modules
-dist
-build
+# ----------------------------
+#  Node & Package Managers
+# ----------------------------
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.yarn-cache/
+.yarnrc.yml
+package-lock.json
+yarn.lock
+
+# ----------------------------
+#  Turborepo & Build Outputs
+# ----------------------------
+.turbo/
+dist/
+build/
+.cache/
+.temp/
+out/
+.next/
+.vite/
+
+# ----------------------------
+#  Tests & Coverage
+# ----------------------------
+coverage/
+.vitest/
+jest-cache/
+*.log
+*.tsbuildinfo
+
+# ----------------------------
+#  TypeScript
+# ----------------------------
+# Build info cache
+*.tsbuildinfo
+# Output directories from tsc
+**/dist/
+**/build/
+
+# ----------------------------
+#  IDEs & Editors
+# ----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.sublime-project
+*.sublime-workspace
+
+# ----------------------------
+#  OS / Environment Files
+# ----------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ----------------------------
+#  Examples & Local Apps
+# ----------------------------
+examples/**/node_modules/
+examples/**/dist/
+examples/**/.turbo/
+examples/**/.cache/
+examples/**/.vite/
+examples/**/.parcel-cache/
+examples/**/build/
+
+# ----------------------------
+#  Env & Secrets
+# ----------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ----------------------------
+#  Logs & Reports
+# ----------------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ----------------------------
+#  Docs & Generated Content
+# ----------------------------
+docs/.vitepress/dist/
+storybook-static/
+.docusaurus/
+site/
+public/build/
+public/dist/
+
+# ----------------------------
+#  Misc Tooling
+# ----------------------------
+*.lock
+*.pid
+*.seed
+*.pid.lock
+*.orig
+*.rej
+
+# ----------------------------
+#  Build Artifacts from Plugins
+# ----------------------------
+packages/**/dist/
+packages/**/.turbo/
+packages/**/.cache/
+plugins/**/dist/
+plugins/**/.turbo/
+plugins/**/.cache/
+
+# ----------------------------
+#  Temporary or Local Data
+# ----------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.old
+*.orig
+
+# ----------------------------
+#  Monorepo Specific
+# ----------------------------
+# Ignore all local symlinks or temporary pnpm workspaces
+pnpm-workspace.yaml
+*.tgz
