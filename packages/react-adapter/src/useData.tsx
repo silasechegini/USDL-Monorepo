@@ -6,12 +6,16 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const udslInstance: UDSL | null = useUDSL();
+  const udslInstance: UDSL = useUDSL();
 
   useEffect(() => {
     let mounted = true;
     if (!udslInstance) {
-      setError(new Error("UDSL instance not set. Call setUDSLInstance()"));
+      setError(
+        new Error(
+          "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
+        ),
+      );
       setLoading(false);
       return;
     }

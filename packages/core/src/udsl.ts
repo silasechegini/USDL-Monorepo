@@ -1,4 +1,3 @@
-
 export type ResourceConfig = {
   get?: string;
   post?: string;
@@ -56,7 +55,9 @@ export class UDSL {
     let url = resource.get;
     if (params) {
       // naive query param append
-      const qs = new URLSearchParams(params as Record<string, string>);
+      const qs = new URLSearchParams(
+        Object.entries(params).map(([k, v]) => [k, String(v)]),
+      );
       url += (url.includes("?") ? "&" : "?") + qs.toString();
     }
 
