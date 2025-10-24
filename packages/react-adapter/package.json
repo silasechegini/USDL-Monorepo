@@ -1,0 +1,26 @@
+{
+  "name": "@udsl/react-adapter",
+  "version": "0.1.0",
+  "description": "React adapter for the Universal Data & State Layer (UDSL).",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs",
+    "dev": "tsup src/index.ts --watch",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@udsl/core": "workspace:*",
+    "react": "^18.3.1"
+  },
+  "peerDependencies": {
+    "react": ">=17.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "typescript": "^5.4.5"
+  }
+}

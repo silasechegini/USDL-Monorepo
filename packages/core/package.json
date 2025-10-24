@@ -1,0 +1,14 @@
+{
+  "name": "@udsl/core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "echo 'no lint configured'"
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
+  }
+}
