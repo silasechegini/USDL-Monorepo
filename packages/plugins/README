@@ -1,0 +1,20 @@
+# Plugins Package
+
+This folder contains plugins for the UDSL (Universal Domain Specific Language) monorepo. Plugins extend the core functionality of UDSL by providing additional features, transformations, or integrations.
+
+## Structure
+
+This package is part of a larger monorepo structure and follows the established patterns for:
+
+- TypeScript compilation
+- Build outputs in `dist/` directories
+- Turbo caching
+- Standard Node.js package management
+
+## Development
+
+The plugins are built and cached using the monorepo's build system. Generated artifacts are automatically ignored via the root `.gitignore` configuration.
+
+## Usage
+
+Plugins can be imported and used to extend the core UDSL functionality. Each plugin should follow the established plugin architecture patterns defined in the core package.
