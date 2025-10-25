@@ -7,9 +7,9 @@ import { initUDSL } from "./udsl-setup";
 const udsl = initUDSL();
 
 createRoot(document.getElementById("root")!).render(
-  <UDSLProvider instance={udsl}>
-    <React.StrictMode>
+  <React.StrictMode>
+    <UDSLProvider instance={udsl}>
       <App />
-    </React.StrictMode>
-  </UDSLProvider>,
+    </UDSLProvider>
+  </React.StrictMode>
 );
