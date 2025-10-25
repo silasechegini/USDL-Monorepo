@@ -1,0 +1,46 @@
+# Examples
+
+This directory contains example applications and usage demonstrations for the UDSL (Universal Domain Specific Language) monorepo.
+
+## Purpose
+
+The examples folder serves to:
+
+- Demonstrate practical usage of UDSL packages
+- Provide reference implementations
+- Show integration patterns between different packages
+- Serve as starting points for new projects
+
+## Structure
+
+Each example is contained in its own subdirectory and includes:
+
+- Complete, runnable applications
+- Documentation explaining the use case
+- Configuration files and dependencies
+- Build and deployment instructions
+
+## Getting Started
+
+1. Navigate to any example directory
+2. Install dependencies: `npm install` or `pnpm install`
+3. Follow the specific README instructions in each example
+4. Run the example using the provided scripts
+
+## Available Examples
+
+_Examples will be added as the monorepo grows_
+
+## Contributing
+
+When adding new examples:
+
+- Create a new directory for each example
+- Include a comprehensive README
+- Ensure all dependencies are properly declared
+- Add appropriate build scripts
+- Test the example thoroughly before submitting
+
+## Build System
+
+Examples use the monorepo's shared build configuration and tooling from the root workspace.
