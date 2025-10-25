@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "dist",
     "declaration": true,
-    "emitDeclarationOnly": false,
     "module": "ESNext",
     "target": "ES2020"
   },
