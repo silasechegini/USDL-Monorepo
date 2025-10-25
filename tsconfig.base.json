@@ -11,11 +11,13 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["vitest", "node"],
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
       "@udsl/core": ["packages/core/src"],
       "@udsl/react-adapter": ["packages/react-adapter/src"]
-    },
-  }
+    }
+  },
+  "include": ["packages", "examples"]
 }
