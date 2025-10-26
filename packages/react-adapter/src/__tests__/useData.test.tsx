@@ -10,19 +10,19 @@ const mockFetch = vi.fn();
 (globalThis as any).fetch = mockFetch;
 
 // Test component that uses useData hook
-const TestComponent = ({ 
-  resourceKey, 
-  params 
-}: { 
+const TestComponent = ({
+  resourceKey,
+  params,
+}: {
   resourceKey: string;
   params?: Record<string, any>;
 }) => {
   const { data, loading, error } = useData(resourceKey, params);
 
-  if (loading) return <div data-testid="loading">Loading...</div>;
-  if (error) return <div data-testid="error">{error.message}</div>;
-  if (data) return <div data-testid="data">{JSON.stringify(data)}</div>;
-  return <div data-testid="no-data">No data</div>;
+  if (loading) return <div data-testid='loading'>Loading...</div>;
+  if (error) return <div data-testid='error'>{error.message}</div>;
+  if (data) return <div data-testid='data'>{JSON.stringify(data)}</div>;
+  return <div data-testid='no-data'>No data</div>;
 };
 
 describe("useData Hook", () => {
@@ -49,8 +49,8 @@ describe("useData Hook", () => {
 
     render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="users" />
-      </UDSLProvider>
+        <TestComponent resourceKey='users' />
+      </UDSLProvider>,
     );
 
     // Initially should show loading
@@ -61,13 +61,15 @@ describe("useData Hook", () => {
       expect(screen.getByTestId("data")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("data")).toHaveTextContent(JSON.stringify(mockUsers));
+    expect(screen.getByTestId("data")).toHaveTextContent(
+      JSON.stringify(mockUsers),
+    );
     expect(mockFetch).toHaveBeenCalledWith(
       "https://api.example.com/users",
       expect.objectContaining({
         method: "GET",
         headers: {},
-      })
+      }),
     );
   });
 
@@ -83,7 +85,7 @@ describe("useData Hook", () => {
 
     setGlobalUDSLInstance(udsl);
 
-    render(<TestComponent resourceKey="users" />);
+    render(<TestComponent resourceKey='users' />);
 
     // Initially should show loading
     expect(screen.getByTestId("loading")).toBeInTheDocument();
@@ -93,7 +95,9 @@ describe("useData Hook", () => {
       expect(screen.getByTestId("data")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("data")).toHaveTextContent(JSON.stringify(mockUsers));
+    expect(screen.getByTestId("data")).toHaveTextContent(
+      JSON.stringify(mockUsers),
+    );
   });
 
   test("handles fetch errors", async () => {
@@ -108,8 +112,8 @@ describe("useData Hook", () => {
 
     render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="users" />
-      </UDSLProvider>
+        <TestComponent resourceKey='users' />
+      </UDSLProvider>,
     );
 
     // Initially should show loading
@@ -124,7 +128,7 @@ describe("useData Hook", () => {
   });
 
   test("shows error when no UDSL instance is available", async () => {
-    render(<TestComponent resourceKey="users" />);
+    render(<TestComponent resourceKey='users' />);
 
     // Should immediately show error (no loading state)
     await waitFor(() => {
@@ -132,7 +136,7 @@ describe("useData Hook", () => {
     });
 
     expect(screen.getByTestId("error")).toHaveTextContent(
-      "No UDSL instance found!"
+      "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
     );
   });
 
@@ -143,8 +147,8 @@ describe("useData Hook", () => {
 
     render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="nonexistent" />
-      </UDSLProvider>
+        <TestComponent resourceKey='nonexistent' />
+      </UDSLProvider>,
     );
 
     // Initially should show loading
@@ -155,12 +159,14 @@ describe("useData Hook", () => {
       expect(screen.getByTestId("error")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("error")).toHaveTextContent("Resource not found: nonexistent");
+    expect(screen.getByTestId("error")).toHaveTextContent(
+      "Resource not found: nonexistent",
+    );
   });
 
   test("passes parameters correctly", async () => {
     const mockUser = { id: 1, name: "John Doe" };
-    
+
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockUser,
@@ -172,8 +178,8 @@ describe("useData Hook", () => {
 
     render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="user" params={{ id: 1, active: true }} />
-      </UDSLProvider>
+        <TestComponent resourceKey='user' params={{ id: 1, active: true }} />
+      </UDSLProvider>,
     );
 
     await waitFor(() => {
@@ -185,7 +191,7 @@ describe("useData Hook", () => {
       expect.objectContaining({
         method: "GET",
         headers: {},
-      })
+      }),
     );
   });
 
@@ -204,29 +210,31 @@ describe("useData Hook", () => {
       });
 
     const udsl = createUDSL({
-      resources: { 
+      resources: {
         user: { get: "https://api.example.com/user" },
-        profile: { get: "https://api.example.com/profile" }
+        profile: { get: "https://api.example.com/profile" },
       },
     });
 
     const { rerender } = render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="user" params={{ id: 1 }} />
-      </UDSLProvider>
+        <TestComponent resourceKey='user' params={{ id: 1 }} />
+      </UDSLProvider>,
     );
 
     // Wait for first data to load
     await waitFor(() => {
       expect(screen.getByTestId("data")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("data")).toHaveTextContent(JSON.stringify(mockUser1));
+    expect(screen.getByTestId("data")).toHaveTextContent(
+      JSON.stringify(mockUser1),
+    );
 
     // Change the key
     rerender(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="profile" params={{ id: 1 }} />
-      </UDSLProvider>
+        <TestComponent resourceKey='profile' params={{ id: 1 }} />
+      </UDSLProvider>,
     );
 
     // Should show loading again
@@ -236,7 +244,9 @@ describe("useData Hook", () => {
     await waitFor(() => {
       expect(screen.getByTestId("data")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("data")).toHaveTextContent(JSON.stringify(mockUser2));
+    expect(screen.getByTestId("data")).toHaveTextContent(
+      JSON.stringify(mockUser2),
+    );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
@@ -256,13 +266,13 @@ describe("useData Hook", () => {
 
     const { unmount } = render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="users" />
-      </UDSLProvider>
+        <TestComponent resourceKey='users' />
+      </UDSLProvider>,
     );
 
     // Wait a bit to ensure useEffect has run and fetch has been called
-    await new Promise(resolve => setTimeout(resolve, 10));
-    
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
     expect(mockFetch).toHaveBeenCalledOnce();
 
     // Unmount before the promise resolves
@@ -275,7 +285,7 @@ describe("useData Hook", () => {
     });
 
     // Wait a bit more to ensure any async operations complete
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // If there are no errors or warnings, the cleanup worked correctly
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -283,26 +293,26 @@ describe("useData Hook", () => {
 
   test("uses cached data when available", async () => {
     const mockUser = { id: 1, name: "Cached User" };
-    
+
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => mockUser,
     });
 
     const udsl = createUDSL({
-      resources: { 
-        user: { 
+      resources: {
+        user: {
           get: "https://api.example.com/user/1",
-          cache: 60 // 60 seconds cache
-        } 
+          cache: 60, // 60 seconds cache
+        },
       },
     });
 
     // First render
     const { unmount } = render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="user" />
-      </UDSLProvider>
+        <TestComponent resourceKey='user' />
+      </UDSLProvider>,
     );
 
     await waitFor(() => {
@@ -314,8 +324,8 @@ describe("useData Hook", () => {
     // Second render should use cached data
     render(
       <UDSLProvider instance={udsl}>
-        <TestComponent resourceKey="user" />
-      </UDSLProvider>
+        <TestComponent resourceKey='user' />
+      </UDSLProvider>,
     );
 
     await waitFor(() => {

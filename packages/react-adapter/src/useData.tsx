@@ -8,14 +8,7 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
   const [error, setError] = useState<Error | null>(null);
 
   // Try to get the UDSL instance, but handle errors gracefully
-  let udslInstance: UDSL | null = null;
-  let instanceError: Error | null = null;
-
-  try {
-    udslInstance = useUDSL();
-  } catch (err) {
-    instanceError = err as Error;
-  }
+  const udslInstance: UDSL | null = useUDSL();
 
   // Memoize the params string to avoid unnecessary re-renders
   const paramsKey = useMemo(() => JSON.stringify(params), [params]);
@@ -28,29 +21,17 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
     setError(null);
     setData(null);
 
-    // If we couldn't get the UDSL instance, set error and stop loading
-    if (instanceError) {
-      if (mounted) {
-        setError(instanceError);
-        setLoading(false);
-      }
-      return;
-    }
-
     if (!udslInstance) {
-      if (mounted) {
-        setError(
-          new Error(
-            "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
-          ),
-        );
-        setLoading(false);
-      }
-      return;
+      const errorInstance = new Error(
+        "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
+      );
+      setError(errorInstance);
+      setLoading(false);
+      return; // Return early instead of throwing
     }
 
     udslInstance
-      .fetch<T>(key, params)
+      .fetchResource<T>(key, params)
       .then((res) => {
         if (!mounted) return;
         setData(res);
@@ -69,7 +50,7 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
     return () => {
       mounted = false;
     };
-  }, [key, paramsKey]); // Removed udslInstance and instanceError from deps to avoid infinite loops
+  }, [key, paramsKey, udslInstance]); // Added udslInstance to handle context changes
 
   return { data, loading, error } as const;
 }
