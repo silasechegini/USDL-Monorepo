@@ -17,20 +17,10 @@ export function useMutation<T = any, TVariables = any>(
   const [error, setError] = useState<Error | null>(null);
 
   // Try to get the UDSL instance, but handle errors gracefully
-  let udslInstance: UDSL | null = null;
-  let instanceError: Error | null = null;
-
-  try {
-    udslInstance = useUDSL();
-  } catch (err) {
-    instanceError = err as Error;
-  }
+  let udslInstance: UDSL = useUDSL();
 
   const mutate = useCallback(
     async (variables: TVariables): Promise<T> => {
-      if (instanceError) {
-        throw instanceError;
-      }
 
       if (!udslInstance) {
         throw new Error(
@@ -53,7 +43,7 @@ export function useMutation<T = any, TVariables = any>(
         setLoading(false);
       }
     },
-    [udslInstance, mutationFn, instanceError],
+    [udslInstance, mutationFn],
   );
 
   const reset = useCallback(() => {
