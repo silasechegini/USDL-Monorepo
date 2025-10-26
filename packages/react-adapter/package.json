@@ -18,11 +18,13 @@
     }
   },
   "sideEffects": false,
+  "type": "module",
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm,cjs",
     "dev": "tsup src/index.ts --watch",
     "lint": "eslint src --ext .ts,.tsx",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "@udsl/core": "workspace:*",
