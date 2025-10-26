@@ -136,7 +136,7 @@ describe("useData Hook", () => {
     });
 
     expect(screen.getByTestId("error")).toHaveTextContent(
-      "No UDSL instance found!",
+      "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
     );
   });
 

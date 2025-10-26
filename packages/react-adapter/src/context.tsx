@@ -21,9 +21,9 @@ export const UDSLProvider = ({
  * @throws If called outside of a UDSLProvider and no global instance is set.
  * @remarks This hook must be used within a UDSLProvider or after calling setGlobalUDSLInstance.
  */
-export function useUDSL(): UDSL {
+export function useUDSL(): UDSL | null {
   const ctx = useContext(UDSLContext);
   if (ctx) return ctx;
   if (globalInstance) return globalInstance;
-  throw new Error("No UDSL instance found!");
+  return null;
 }

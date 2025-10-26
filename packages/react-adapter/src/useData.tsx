@@ -8,14 +8,7 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
   const [error, setError] = useState<Error | null>(null);
 
   // Try to get the UDSL instance, but handle errors gracefully
-  let udslInstance: UDSL | null = null;
-  let instanceError: Error | null = null;
-
-  try {
-    udslInstance = useUDSL();
-  } catch (err) {
-    instanceError = err as Error;
-  }
+  let udslInstance: UDSL | null = useUDSL();
 
   // Memoize the params string to avoid unnecessary re-renders
   const paramsKey = useMemo(() => JSON.stringify(params), [params]);
@@ -27,15 +20,6 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
     setLoading(true);
     setError(null);
     setData(null);
-
-    // If we couldn't get the UDSL instance, set error and stop loading
-    if (instanceError) {
-      if (mounted) {
-        setError(instanceError);
-        setLoading(false);
-      }
-      return;
-    }
 
     if (!udslInstance) {
       if (mounted) {
