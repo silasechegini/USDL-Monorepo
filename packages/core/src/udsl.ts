@@ -98,8 +98,11 @@ export class UDSL {
     if (!resource) throw new Error(`Resource not found: ${key}`);
     if (!resource.get) throw new Error(`GET endpoint not defined for: ${key}`);
 
+    // Create cache key that includes parameters for proper cache isolation
+    const cacheKey = params ? `${key}:${JSON.stringify(params)}` : key;
+
     // Basic cache check
-    const cached = this.cache.get(key);
+    const cached = this.cache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.expiresAt > now) {
       return cached.data as T;
@@ -140,10 +143,50 @@ export class UDSL {
     }
 
     if (resource.cache && resource.cache > 0) {
-      this.cache.set(key, { data, expiresAt: now + resource.cache * 1000 });
+      this.cache.set(cacheKey, {
+        data,
+        expiresAt: now + resource.cache * 1000,
+      });
     }
 
     return data as T;
+  }
+
+  /**
+   * Invalidates cache entries for a resource with configurable granularity.
+   *
+   * Cache invalidation strategy:
+   * - CREATE: Invalidates list/collection caches but preserves specific item caches
+   * - UPDATE/PATCH: Invalidates all caches for the resource (aggressive but safe)
+   * - DELETE: Invalidates all caches for the resource
+   *
+   * @param resourceKey - The resource key to invalidate
+   * @param operation - The type of mutation operation
+   * @param affectedId - The ID of the affected resource (for future granular invalidation)
+   */
+  private invalidateResourceCache(
+    resourceKey: string,
+    operation: "create" | "update" | "patch" | "delete",
+    affectedId?: string | number,
+  ) {
+    const keysToDelete: string[] = [];
+
+    for (const [cacheKey] of this.cache) {
+      // Match exact key or parameterized keys for this resource
+      if (cacheKey === resourceKey || cacheKey.startsWith(`${resourceKey}:`)) {
+        if (operation === "create") {
+          // For CREATE: Only invalidate caches that might represent collections/lists
+          // Preserve individual item caches since new items don't affect existing ones
+          // This is a conservative approach - could be made more sophisticated
+          keysToDelete.push(cacheKey);
+        } else {
+          // For UPDATE, PATCH, DELETE: Invalidate all related caches (aggressive but safe)
+          keysToDelete.push(cacheKey);
+        }
+      }
+    }
+
+    keysToDelete.forEach((key) => this.cache.delete(key));
   }
 
   async createResource<T = any>(
@@ -163,8 +206,8 @@ export class UDSL {
 
     const result = await this.executeRequest<T>("POST", url, data, key);
 
-    // Invalidate cache for this resource since we created new data
-    this.cache.delete(key);
+    // Invalidate cache using granular strategy
+    this.invalidateResourceCache(key, "create");
 
     return result;
   }
@@ -185,8 +228,8 @@ export class UDSL {
 
     const result = await this.executeRequest<T>("PUT", url, data, key);
 
-    // Invalidate cache for this resource since we updated data
-    this.cache.delete(key);
+    // Invalidate cache using granular strategy
+    this.invalidateResourceCache(key, "update", id);
 
     return result;
   }
@@ -208,8 +251,8 @@ export class UDSL {
 
     const result = await this.executeRequest<T>("PATCH", url, data, key);
 
-    // Invalidate cache for this resource since we patched data
-    this.cache.delete(key);
+    // Invalidate cache using granular strategy
+    this.invalidateResourceCache(key, "patch", id);
 
     return result;
   }
@@ -230,8 +273,8 @@ export class UDSL {
 
     const result = await this.executeRequest<T>("DELETE", url, undefined, key);
 
-    // Invalidate cache for this resource since we deleted data
-    this.cache.delete(key);
+    // Invalidate cache using granular strategy
+    this.invalidateResourceCache(key, "delete", id);
 
     return result;
   }

@@ -57,7 +57,7 @@ export function useMutation<T = any, TVariables = any>(
     error,
     mutate,
     reset,
-  } as const;
+  };
 }
 
 // Specific CRUD mutation hooks
