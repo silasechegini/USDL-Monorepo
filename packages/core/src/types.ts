@@ -1,6 +1,9 @@
 export type ResourceConfig = {
   get?: string;
   post?: string;
+  put?: string;
+  patch?: string;
+  delete?: string;
   cache?: number; // seconds
   schema?: unknown; // zod schema or JSON schema ref
 };
