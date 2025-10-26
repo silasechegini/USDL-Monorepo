@@ -22,7 +22,7 @@ export function useData<T = any>(key: string, params?: Record<string, any>) {
 
     setLoading(true);
     udslInstance
-      .fetch<T>(key, params)
+      .fetchResource<T>(key, params)
       .then((res) => {
         if (!mounted) return;
         setData(res);
