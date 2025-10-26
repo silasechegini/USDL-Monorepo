@@ -81,7 +81,10 @@ export class UDSL {
     return result;
   }
 
-  async fetchResource<T = any>(key: string, params?: Record<string, any>): Promise<T> {
+  async fetchResource<T = any>(
+    key: string,
+    params?: Record<string, any>,
+  ): Promise<T> {
     const resource = this.config.resources[key];
     if (!resource) throw new Error(`Resource not found: ${key}`);
     if (!resource.get) throw new Error(`GET endpoint not defined for: ${key}`);
@@ -119,7 +122,12 @@ export class UDSL {
     if (resource.schema) {
       try {
         // If schema is a zod schema
-        if ((resource.schema as any)._def) {
+        if (
+          typeof resource.schema === "object" &&
+          resource.schema !== null &&
+          "parse" in resource.schema &&
+          typeof resource.schema.parse === "function"
+        ) {
           (resource.schema as any).parse(data);
         }
       } catch (e) {
