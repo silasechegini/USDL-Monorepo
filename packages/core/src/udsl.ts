@@ -25,6 +25,15 @@ export class UDSL {
     }
   }
 
+  private isZodSchema(schema: any): boolean {
+    return (
+      typeof schema === "object" &&
+      schema !== null &&
+      "parse" in schema &&
+      typeof schema.parse === "function"
+    );
+  }
+
   private async executeRequest<T>(
     method: string,
     url: string,
@@ -58,7 +67,7 @@ export class UDSL {
       if (resource?.schema) {
         try {
           // If schema is a zod schema
-          if ((resource.schema as any)._def) {
+          if (this.isZodSchema(resource.schema)) {
             (resource.schema as any).parse(responseData);
           }
         } catch (e) {
@@ -122,12 +131,7 @@ export class UDSL {
     if (resource.schema) {
       try {
         // If schema is a zod schema
-        if (
-          typeof resource.schema === "object" &&
-          resource.schema !== null &&
-          "parse" in resource.schema &&
-          typeof resource.schema.parse === "function"
-        ) {
+        if (this.isZodSchema(resource.schema)) {
           (resource.schema as any).parse(data);
         }
       } catch (e) {

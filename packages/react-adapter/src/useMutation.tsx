@@ -12,20 +12,19 @@ import {
 export function useMutation<T = any, TVariables = any>(
   mutationFn: (udsl: UDSL, variables: TVariables) => Promise<T>,
 ): MutationResult<T, TVariables> {
+  const udslInstance = useUDSL();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Try to get the UDSL instance, but handle errors gracefully
-  let udslInstance: UDSL | null = useUDSL();
-
   const mutate = useCallback(
     async (variables: TVariables): Promise<T> => {
-
       if (!udslInstance) {
-        throw new Error(
+        const errorInstance = new Error(
           "UDSL instance not set. Either call setGlobalUDSLInstance() or wrap your app in UDSLProvider and pass instance to it.",
         );
+        setError(errorInstance);
+        throw errorInstance;
       }
 
       setLoading(true);
@@ -43,7 +42,7 @@ export function useMutation<T = any, TVariables = any>(
         setLoading(false);
       }
     },
-    [udslInstance, mutationFn],
+    [mutationFn, udslInstance],
   );
 
   const reset = useCallback(() => {
