@@ -104,9 +104,9 @@ export class UDSL {
   ): Promise<void> {
     const cacheKey = this.generateCacheKey(key, params);
 
-    // Prevent duplicate revalidations
+    // Prevent duplicate revalidations - return existing promise if already revalidating
     if (this.revalidationPromises.has(cacheKey)) {
-      return;
+      return this.revalidationPromises.get(cacheKey);
     }
 
     const resource = this.config.resources[key];
