@@ -321,17 +321,36 @@ export class UDSL {
     };
   }
 
+  /**
+   * Forces revalidation of a cached resource and returns the fresh data.
+   * 
+   * This method will:
+   * - Wait for any ongoing revalidation to complete
+   * - Trigger a new revalidation if none is in progress
+   * - Return the fresh data after revalidation completes
+   * - Throw an error if revalidation fails or no data is available
+   * 
+   * @param resourceKey - The resource key to revalidate
+   * @param params - Optional parameters for the resource
+   * @returns Promise that resolves to the fresh data
+   * @throws Error if revalidation fails or resource doesn't exist
+   */
   public async revalidate<T = any>(
     resourceKey: string,
     params?: Record<string, any>,
-  ): Promise<T | null> {
+  ): Promise<T> {
     const cacheKey = this.generateCacheKey(resourceKey, params);
 
     // If already revalidating, wait for that promise
     if (this.revalidationPromises.has(cacheKey)) {
       await this.revalidationPromises.get(cacheKey);
       const cached = this.cache.get(cacheKey);
-      return cached ? cached.data : null;
+      if (!cached) {
+        throw new Error(
+          `Revalidation failed: no data available for ${resourceKey}`,
+        );
+      }
+      return cached.data;
     }
 
     // Force revalidation by triggering background revalidation and waiting for it
@@ -344,7 +363,12 @@ export class UDSL {
     }
 
     const cached = this.cache.get(cacheKey);
-    return cached ? cached.data : null;
+    if (!cached) {
+      throw new Error(
+        `Revalidation failed: no data available for ${resourceKey}`,
+      );
+    }
+    return cached.data;
   }
 
   async createResource<T = any>(

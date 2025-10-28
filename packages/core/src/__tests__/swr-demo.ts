@@ -71,7 +71,7 @@ async function swrDemo() {
     const start5 = Date.now();
     const users5 = await udsl.revalidate("users");
     console.log(
-      `   Revalidated ${users5?.length} users in ${Date.now() - start5}ms`,
+      `   Revalidated ${users5.length} users in ${Date.now() - start5}ms`,
     );
     console.log(`   Cache info:`, udsl.getCacheInfo("users"));
 

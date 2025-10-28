@@ -231,4 +231,11 @@ describe("UDSL SWR Implementation", () => {
 
     vi.useRealTimers();
   });
+
+  it("should throw error instead of returning null when revalidation fails", async () => {
+    // Try to revalidate a resource that was never cached
+    await expect(udsl.revalidate("users")).rejects.toThrow(
+      "Revalidation failed: no data available for users",
+    );
+  });
 });
