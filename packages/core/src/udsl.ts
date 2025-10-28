@@ -140,7 +140,9 @@ export class UDSL {
       }
     })();
 
-    // Register the promise immediately after creation (atomic with creation)
+    // Register the promise immediately after creation.
+    // This prevents duplicate revalidations within a single event loop tick,
+    // but is not truly atomic across all possible concurrent accesses.
     this.revalidationPromises.set(cacheKey, revalidationPromise);
 
     // Clean up the promise when done
