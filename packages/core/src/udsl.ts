@@ -112,14 +112,16 @@ export class UDSL {
     const resource = this.config.resources[key];
     if (!resource?.get || !resource.cache) return;
 
-    // Mark as revalidating
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      cached.isRevalidating = true;
-    }
+    // Create and immediately register the promise to prevent race conditions
+    const revalidationPromise = (async () => {
+      // Mark as revalidating
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        cached.isRevalidating = true;
+      }
 
-    const revalidationPromise = this.performFetch<T>(key, params)
-      .then((data) => {
+      try {
+        const data = await this.performFetch<T>(key, params);
         const now = Date.now();
         this.cache.set(cacheKey, {
           data,
@@ -128,20 +130,23 @@ export class UDSL {
           isRevalidating: false,
           lastRevalidated: now,
         });
-      })
-      .catch((error) => {
+      } catch (error) {
         // Keep stale data on revalidation error, just mark as not revalidating
         const cached = this.cache.get(cacheKey);
         if (cached) {
           cached.isRevalidating = false;
         }
         console.warn(`Background revalidation failed for ${cacheKey}:`, error);
-      })
-      .finally(() => {
-        this.revalidationPromises.delete(cacheKey);
-      });
+      }
+    })();
 
+    // Register the promise immediately after creation (atomic with creation)
     this.revalidationPromises.set(cacheKey, revalidationPromise);
+
+    // Clean up the promise when done
+    revalidationPromise.finally(() => {
+      this.revalidationPromises.delete(cacheKey);
+    });
   }
 
   private async performFetch<T>(
@@ -323,13 +328,13 @@ export class UDSL {
 
   /**
    * Forces revalidation of a cached resource and returns the fresh data.
-   * 
+   *
    * This method will:
    * - Wait for any ongoing revalidation to complete
    * - Trigger a new revalidation if none is in progress
    * - Return the fresh data after revalidation completes
    * - Throw an error if revalidation fails or no data is available
-   * 
+   *
    * @param resourceKey - The resource key to revalidate
    * @param params - Optional parameters for the resource
    * @returns Promise that resolves to the fresh data
@@ -354,7 +359,7 @@ export class UDSL {
     }
 
     // Force revalidation by triggering background revalidation and waiting for it
-    this.revalidateInBackground<T>(resourceKey, params);
+    await this.revalidateInBackground<T>(resourceKey, params);
 
     // Wait for the revalidation promise to complete
     const revalidationPromise = this.revalidationPromises.get(cacheKey);

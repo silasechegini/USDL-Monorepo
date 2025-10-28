@@ -238,4 +238,79 @@ describe("UDSL SWR Implementation", () => {
       "Revalidation failed: no data available for users",
     );
   });
+
+  it("should properly await revalidation promise without race conditions", async () => {
+    // First request to populate cache
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 1, name: "John" }),
+    });
+
+    await udsl.fetchResource("users");
+
+    // Mock updated response for revalidation
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 1, name: "John Updated" }),
+    });
+
+    // Multiple concurrent revalidation calls - should not have race conditions
+    const promises = Array.from({ length: 5 }, () => udsl.revalidate("users"));
+    const results = await Promise.all(promises);
+
+    // All should return the same updated data
+    results.forEach((result) => {
+      expect(result).toEqual({ id: 1, name: "John Updated" });
+    });
+
+    // Should only have made 2 requests total (initial + 1 revalidation)
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("should prevent duplicate background revalidations with concurrent calls", async () => {
+    // First request to populate cache
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 1, name: "John" }),
+    });
+
+    await udsl.fetchResource("users");
+
+    // Expire cache
+    vi.useFakeTimers();
+    vi.advanceTimersByTime(6000);
+
+    // Mock slow response for revalidation
+    mockFetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                json: () => Promise.resolve({ id: 1, name: "John Updated" }),
+              }),
+            100,
+          ),
+        ),
+    );
+
+    // Multiple simultaneous requests that should trigger background revalidation
+    const promises = Array.from({ length: 10 }, () =>
+      udsl.fetchResource("users"),
+    );
+
+    const results = await Promise.all(promises);
+
+    // All should return stale data immediately
+    results.forEach((result) => {
+      expect(result).toEqual({ id: 1, name: "John" });
+    });
+
+    // Should only have made 2 requests total (initial + 1 background revalidation)
+    // No duplicate revalidations despite 10 concurrent calls
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
 });
