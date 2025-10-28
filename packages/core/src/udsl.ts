@@ -106,7 +106,7 @@ export class UDSL {
 
     // Prevent duplicate revalidations - return existing promise if already revalidating
     if (this.revalidationPromises.has(cacheKey)) {
-      return this.revalidationPromises.get(cacheKey);
+      return;
     }
 
     const resource = this.config.resources[key];
@@ -357,7 +357,7 @@ export class UDSL {
           `Revalidation failed: no data available for ${resourceKey}`,
         );
       }
-      return cached.data;
+      return cached.data as T;
     }
 
     // Force revalidation by triggering background revalidation and waiting for it
@@ -375,7 +375,7 @@ export class UDSL {
         `Revalidation failed: no data available for ${resourceKey}`,
       );
     }
-    return cached.data;
+    return cached.data as T;
   }
 
   async createResource<T = any>(
