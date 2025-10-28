@@ -8,6 +8,14 @@ export type ResourceConfig = {
   schema?: unknown; // zod schema or JSON schema ref
 };
 
+export type CacheEntry = {
+  data: any;
+  expiresAt: number;
+  isStale: boolean;
+  isRevalidating: boolean;
+  lastRevalidated: number;
+};
+
 export type UDSLConfig = {
   resources: Record<string, ResourceConfig>;
 };
