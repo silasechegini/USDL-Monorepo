@@ -143,20 +143,6 @@ export class UDSL {
     // Register the promise immediately after creation.
     // This prevents duplicate revalidations within a single event loop tick,
     // but is not truly atomic across all possible concurrent accesses.
-    // 
-    // Implications:
-    // In rare cases, if multiple calls to this method occur in the same tick or in rapid succession,
-    // it is possible that more than one revalidation for the same cacheKey could be started in parallel.
-    // This could result in redundant network requests and the cache being updated multiple times,
-    // but does not compromise data integrity, as the cache will eventually contain the latest data.
-    // 
-    // Why this is acceptable:
-    // In typical Node.js environments, which are single-threaded, this race is extremely unlikely
-    // and the impact is limited to redundant background fetches. The cache remains consistent.
-    // 
-    // Caller guidance:
-    // Callers do not need to take special precautions, but should be aware that in rare cases,
-    // redundant background revalidations may occur. This does not affect correctness, only efficiency.
     this.revalidationPromises.set(cacheKey, revalidationPromise);
 
     // Clean up the promise when done
