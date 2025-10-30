@@ -1,6 +1,6 @@
-import { UDSLConfig, UDSLPlugin, CacheEntry } from "./types";
+import { UDSLConfig, UDSLPlugin, CacheEntry, IUDSL, CacheResult, MutateOperation } from "./types";
 
-export class UDSL {
+export class UDSL implements IUDSL {
   private config: UDSLConfig;
   private cache = new Map<string, CacheEntry>();
   private plugins: UDSLPlugin[] = [];
@@ -270,7 +270,7 @@ export class UDSL {
    */
   private invalidateResourceCache(
     resourceKey: string,
-    operation: "create" | "update" | "patch" | "delete",
+    operation: MutateOperation,
     affectedId?: string | number,
   ) {
     const keysToDelete: string[] = [];
@@ -309,12 +309,7 @@ export class UDSL {
   public getCacheInfo(
     resourceKey: string,
     params?: Record<string, any>,
-  ): {
-    isStale: boolean;
-    isRevalidating: boolean;
-    lastRevalidated: number | null;
-    expiresAt: number | null;
-  } | null {
+  ): CacheResult | null {
     const cacheKey = this.generateCacheKey(resourceKey, params);
     const cached = this.cache.get(cacheKey);
 
