@@ -1,7 +1,6 @@
 export interface IUDSL {
   fetchResource<T>(key: string, params?: Record<string, any>): Promise<T>;
   registerPlugin(plugin: UDSLPlugin): void;
-  fetchResource<T>(key: string, params?: Record<string, any>): Promise<T>;
   invalidateResource(key: string): void;
   invalidateCache(): void;
   getCacheInfo(key: string, params?: Record<string, any>): CacheResult | null;
@@ -52,7 +51,7 @@ export type CacheResult = {
   isRevalidating: boolean;
   lastRevalidated: number;
   expiresAt: number | null;
-} | null;
+};
 
 export type UDSLConfig = {
   resources: Record<string, ResourceConfig>;

@@ -309,7 +309,7 @@ export class UDSL implements IUDSL {
   public getCacheInfo(
     resourceKey: string,
     params?: Record<string, any>,
-  ): CacheResult {
+  ): CacheResult | null {
     const cacheKey = this.generateCacheKey(resourceKey, params);
     const cached = this.cache.get(cacheKey);
 
