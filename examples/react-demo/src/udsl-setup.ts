@@ -10,10 +10,20 @@ export function initUDSL(): UDSL {
     },
   });
 
-  // PRACTICAL AUTH EXAMPLES:
+  /**
+   * PRACTICAL AUTH EXAMPLES:
+   * 
+   * Example 1: Token from localStorage (most common in SPAs)
+   * Example 2: Token from authentication service (like Auth0, Firebase, etc.)
+   * Example 3: Token with automatic refresh
+   */
 
-  // Example 1: Token from localStorage (most common in SPAs)
   const authPlugin = createAuthPlugin(() => {
+    /**
+     * passing a default token if none is found in localStorage,
+     * just for the sake of this demo.  In a real application, you might want to
+     * handle missing tokens differently (e.g., redirect to login).
+     */
     const token = localStorage.getItem("authToken") ?? "custom-default-token";
     if (!token) {
       // In a real app, you might redirect to login instead
@@ -22,7 +32,9 @@ export function initUDSL(): UDSL {
     return token;
   });
 
-  // Example 2: Token from authentication service (like Auth0, Firebase, etc.)
+  /** 
+   * Example 2: Token from authentication service (like Auth0, Firebase, etc.) 
+   */
   // const authPlugin = createAuthPlugin(async () => {
   //   // This is how you'd integrate with popular auth services:
   //
@@ -44,7 +56,9 @@ export function initUDSL(): UDSL {
   //   return data.access_token;
   // });
 
-  // Example 3: Token with automatic refresh
+  /** 
+   * Example 3: Token with automatic refresh 
+   */
   // const authPlugin = createAuthPlugin(async () => {
   //   let token = localStorage.getItem('authToken');
   //   const expiry = localStorage.getItem('tokenExpiry');
