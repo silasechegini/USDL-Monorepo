@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@udsl/core": "workspace:*",
+    "@udsl/plugin-auth": "workspace:*",
     "@udsl/react-adapter": "workspace:*",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"

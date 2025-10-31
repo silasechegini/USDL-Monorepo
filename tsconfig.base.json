@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@udsl/core": ["packages/core/src"],
-      "@udsl/react-adapter": ["packages/react-adapter/src"]
+      "@udsl/react-adapter": ["packages/react-adapter/src"],
+      "@udsl/plugin-auth": ["packages/plugins/auth/src"]
     }
   },
   "include": ["packages", "examples"]
