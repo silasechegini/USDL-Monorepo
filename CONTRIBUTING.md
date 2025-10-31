@@ -2,13 +2,13 @@
 
 We love your input! We want to make contributing to UDSL as easy and transparent as possible, whether it's:
 
-- 🐛 Reporting a bug
+- 🐞 Reporting a bug
 - 💡 Discussing the current state of the code
-- 🚀 Submitting a fix
+- 🛠️ Submitting a fix
 - 📝 Proposing new features
-- 🎯 Becoming a maintainer
+- ⛏️ Becoming a maintainer
 
-## 🚀 Development Process
+## 🔁 Development Process
 
 We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
 
@@ -69,7 +69,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
    ```
    Then create a pull request on GitHub.
 
-## 📝 Commit Message Convention
+## 🗨️ Commit Message Convention
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear and structured commit messages:
 
@@ -138,7 +138,7 @@ UDSL-Monorepo/
 - Must include comprehensive README with examples
 - Should handle errors gracefully
 
-## ✅ Code Style and Standards
+## 🎨 Code Style and Standards
 
 ### TypeScript Guidelines
 - Use strict TypeScript configuration
@@ -266,7 +266,7 @@ When adding new features:
 - Update the main repository README if needed
 - Include any breaking changes in migration guides
 
-## 🐛 Bug Reports
+## 🐞 Bug Reports
 
 Great bug reports tend to have:
 
@@ -344,12 +344,12 @@ const result = udsl.newFeature({...});
 Add any other context or screenshots about the feature request here.
 ```
 
-## 🎯 Getting Started Contributions
+## ➕ Getting Started Contributions
 
 Good first contributions:
 - 📝 Fix typos in documentation
 - 🧪 Add missing tests
-- 🐛 Fix small bugs
+- 🐞 Fix small bugs
 - 📚 Improve examples
 - 🎨 Improve code formatting
 
@@ -383,10 +383,10 @@ Releases are handled by maintainers:
 ## 📞 Questions or Need Help?
 
 - 💬 Open a [GitHub Discussion](https://github.com/silasechegini/UDSL-Monorepo/discussions)
-- 🐛 Create an [Issue](https://github.com/silasechegini/UDSL-Monorepo/issues)
+- 🐞 Create an [Issue](https://github.com/silasechegini/UDSL-Monorepo/issues)
 - 📧 Contact maintainers directly for sensitive issues
 
-## 🙏 Recognition
+## 👏🏾 Recognition
 
 Contributors will be recognized in:
 - GitHub contributors list
@@ -394,10 +394,11 @@ Contributors will be recognized in:
 - README acknowledgments
 - Project documentation
 
-Thank you for contributing to UDSL! 🚀
+Thank you for contributing to UDSL! 💫🫱🏾‍🫲🏾
 
 ---
 
 ## License
+
 
 By contributing, you agree that your contributions will be licensed under the same MIT License that covers the project.
