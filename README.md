@@ -4,15 +4,15 @@ A **pluggable data orchestration SDK** that provides a unified interface for dat
 
 ##  Features
 
--  **Stale-While-Revalidate (SWR)** - Serve cached data instantly while revalidating in the background
--  **Smart Caching** - Automatic cache invalidation with configurable TTL
--  **Plugin Architecture** - Extensible with authentication, logging, and custom transformations
--  **Framework Adapters** - React hooks with more frameworks coming soon
--  **TypeScript First** - Full type safety with excellent IntelliSense support
--  **RESTful CRUD** - Built-in support for GET, POST, PUT, PATCH, DELETE operations
--  **Error Handling** - Comprehensive error management with retry strategies
--  **Promise Deduplication** - Prevents duplicate requests for the same resource
--  **Authentication Ready** - Built-in auth plugin for Bearer token management
+-  **Stale-While-Revalidate (SWR)** - Serve cached data instantly while revalidating in the background.
+-  **Smart Caching** - Automatic cache invalidation with configurable TTL.
+-  **Plugin Architecture** - Extensible with authentication, logging, and custom transformations.
+-  **Framework Adapters** - React hooks with more frameworks coming soon.
+-  **TypeScript First** - Full type safety with excellent IntelliSense support.
+-  **RESTful CRUD** - Built-in support for GET, POST, PUT, PATCH, DELETE operations.
+-  **Error Handling** - Comprehensive error management with retry strategies.
+-  **Promise Deduplication** - Prevents duplicate requests for the same resource.
+-  **Authentication Ready** - Built-in auth plugin for Bearer token management.
 
 ##  Packages
 
@@ -46,12 +46,12 @@ const udsl = createUDSL({
   resources: {
     users: {
       get: "https://jsonplaceholder.typicode.com/users",
-      cache: 300, // 5 minutes
+      cache: 300, // time is in seconds (5 minutes)
     },
     posts: {
       get: "https://jsonplaceholder.typicode.com/posts",
       post: "https://jsonplaceholder.typicode.com/posts",
-      cache: 180, // 3 minutes
+      cache: 180, // time is in seconds (3 minutes)
     },
   },
 });
@@ -182,7 +182,7 @@ UDSL implements a robust SWR pattern that:
 // First request - fetches fresh data
 const users1 = await udsl.fetchResource("users"); // ~200ms
 
-// Second request - returns cached data instantly
+// Second request (within lifetime of cached resource) - returns cached data instantly
 const users2 = await udsl.fetchResource("users"); // ~1ms
 
 // After cache expires - serves stale data, revalidates in background
@@ -229,6 +229,8 @@ const authPlugin = createAuthPlugin(async () => {
 });
 
 udsl.registerPlugin(authPlugin);
+
+// you can also choose to implement your own custom authentication plugin. These are just examples to guide.
 ```
 
 ### Custom Plugin Example
