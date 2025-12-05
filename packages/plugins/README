@@ -1,20 +1,228 @@
-# Plugins Package
+# UDSL Plugins
 
-This folder contains plugins for the UDSL (Universal Domain Specific Language) monorepo. Plugins extend the core functionality of UDSL by providing additional features, transformations, or integrations.
+This folder contains official plugins for the UDSL (Universal Domain Specific Language) ecosystem. Plugins extend the core functionality of UDSL by providing additional features like authentication, observability, transformations, and integrations.
 
-## Structure
+## Available Plugins
 
-This package is part of a larger monorepo structure and follows the established patterns for:
+### 🔐 Authentication Plugin (`@udsl/plugin-auth`)
 
-- TypeScript compilation
-- Build outputs in `dist/` directories
-- Turbo caching
-- Standard Node.js package management
+Provides secure authentication and authorization capabilities for UDSL applications.
+
+**Features:**
+
+- Bearer token management with automatic refresh
+- Support for JWT tokens, API keys, and OAuth flows
+- Integration with Auth0, Firebase, and custom providers
+- Automatic retry on 401/403 responses
+- Secure token storage options
+
+**Installation:**
+
+```bash
+pnpm add @udsl/plugin-auth
+```
+
+### 📊 Telemetry Plugin (`@udsl/plugin-telemetry`)
+
+Comprehensive observability and distributed tracing powered by OpenTelemetry.
+
+**Features:**
+
+- Distributed tracing with W3C trace context propagation
+- Performance monitoring and metrics collection
+- Cache operation visibility (hits, misses, revalidation)
+- SWR pattern observability
+- Integration with Jaeger, Honeycomb, DataDog, New Relic
+- Custom spans and metrics support
+
+**Installation:**
+
+```bash
+pnpm add @udsl/plugin-telemetry @opentelemetry/api
+```
+
+## Plugin Architecture
+
+All UDSL plugins follow a consistent architecture:
+
+```typescript
+interface UDSLPlugin {
+  name: string;
+  version: string;
+
+  // HTTP lifecycle hooks
+  beforeFetch?: (
+    config: RequestConfig,
+  ) => RequestConfig | Promise<RequestConfig>;
+  afterFetch?: (
+    response: Response,
+    config: RequestConfig,
+  ) => Response | Promise<Response>;
+  onError?: (error: Error, config: RequestConfig) => void | Promise<void>;
+
+  // Cache lifecycle hooks
+  onCacheHit?: (
+    key: string,
+    data: any,
+    isStale: boolean,
+  ) => void | Promise<void>;
+  onCacheMiss?: (key: string) => void | Promise<void>;
+  onRevalidationStart?: (key: string) => void | Promise<void>;
+  onRevalidationComplete?: (
+    key: string,
+    success: boolean,
+  ) => void | Promise<void>;
+
+  // CRUD operation hooks
+  onOperationStart?: (
+    operation: string,
+    resourceKey: string,
+    data?: any,
+  ) => void | Promise<void>;
+  onOperationComplete?: (
+    operation: string,
+    resourceKey: string,
+    result: any,
+  ) => void | Promise<void>;
+}
+```
+
+## Creating Custom Plugins
+
+### 1. Basic Plugin Structure
+
+```typescript
+// my-plugin/src/index.ts
+import type { UDSLPlugin } from "@udsl/core";
+
+export interface MyPluginOptions {
+  apiKey?: string;
+  baseUrl?: string;
+}
+
+export class MyPlugin implements UDSLPlugin {
+  name = "my-plugin";
+  version = "1.0.0";
+
+  constructor(private options: MyPluginOptions) {}
+
+  beforeFetch = async (config: RequestConfig) => {
+    // Add custom headers
+    config.headers = {
+      ...config.headers,
+      "X-API-Key": this.options.apiKey,
+    };
+    return config;
+  };
+
+  afterFetch = async (response: Response) => {
+    // Transform response
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      // Add custom processing
+    }
+    return response;
+  };
+}
+
+export function createMyPlugin(options: MyPluginOptions): MyPlugin {
+  return new MyPlugin(options);
+}
+```
+
+### 2. Package Structure
+
+```
+my-plugin/
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── index.ts
+│   └── types.ts
+├── README.md
+└── dist/ (generated)
+```
+
+### 3. Integration Example
+
+```typescript
+import { createUDSL } from "@udsl/core";
+import { createMyPlugin } from "./my-plugin";
+
+const udsl = createUDSL({
+  resources: {
+    users: { get: "/api/users" },
+  },
+});
+
+const myPlugin = createMyPlugin({
+  apiKey: process.env.API_KEY,
+  baseUrl: "https://api.example.com",
+});
+
+udsl.registerPlugin(myPlugin);
+```
 
 ## Development
 
-The plugins are built and cached using the monorepo's build system. Generated artifacts are automatically ignored via the root `.gitignore` configuration.
+### Building Plugins
 
-## Usage
+All plugins use a consistent build system:
 
-Plugins can be imported and used to extend the core UDSL functionality. Each plugin should follow the established plugin architecture patterns defined in the core package.
+```bash
+# Build individual plugin
+cd packages/plugins/auth
+pnpm build
+
+# Build all plugins from root
+pnpm build --filter="./packages/plugins/*"
+```
+
+### Testing
+
+```bash
+# Test individual plugin
+cd packages/plugins/telemetry
+pnpm test
+
+# Test all plugins
+pnpm test --filter="./packages/plugins/*"
+```
+
+### Monorepo Structure
+
+The plugins are part of a larger monorepo structure with:
+
+- TypeScript compilation with shared configurations
+- Build outputs in `dist/` directories
+- Turbo caching for fast builds
+- Workspace dependencies using `workspace:*`
+- Shared development tooling (ESLint, Prettier, Vitest)
+
+## Contributing
+
+See the main [CONTRIBUTING.md](../../CONTRIBUTING.md) guide for details on:
+
+- Setting up the development environment
+- Plugin development standards
+- Testing requirements
+- Documentation expectations
+- Pull request process
+
+## Plugin Ideas
+
+Looking to contribute? Here are some plugin ideas:
+
+- **Rate Limiting**: Implement rate limiting with different strategies
+- **Retry Logic**: Advanced retry mechanisms with exponential backoff
+- **Validation**: Request/response validation using Zod or similar
+- **Mocking**: Development-time mocking and fixture management
+- **Metrics**: Business metrics collection and analytics
+- **Encryption**: End-to-end encryption for sensitive data
+- **Compression**: Request/response compression (gzip, brotli)
+- **GraphQL**: GraphQL query optimization and batching
+- **WebSocket**: Real-time data synchronization
+- **Offline**: Offline support with sync capabilities
+
+## License
+
+MIT License - see the main repository for details.

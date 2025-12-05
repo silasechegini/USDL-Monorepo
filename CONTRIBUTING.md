@@ -15,12 +15,14 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 ### Pull Request Process
 
 1. **Fork the Repository**
+
    ```bash
    git clone https://github.com/silasechegini/UDSL-Monorepo.git
    cd UDSL-Monorepo
    ```
 
 2. **Create a Feature Branch**
+
    ```bash
    git checkout -b feature/my-awesome-feature
    # or
@@ -28,36 +30,40 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
    ```
 
 3. **Set Up Development Environment**
+
    ```bash
    # Install dependencies
    pnpm install
-   
+
    # Build all packages
    pnpm build
-   
+
    # Run tests to ensure everything works
    pnpm test
    ```
 
 4. **Make Your Changes**
+
    - Write your code
    - Add tests for new functionality
    - Update documentation if needed
    - Ensure your code follows our style guidelines
 
 5. **Test Your Changes**
+
    ```bash
    # Run tests
    pnpm test
-   
+
    # Run linting
    pnpm lint
-   
+
    # Build to ensure no compilation errors
    pnpm build
    ```
 
 6. **Commit Your Changes**
+
    ```bash
    git add .
    git commit -m "feat: add awesome new feature"
@@ -82,6 +88,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear
 ```
 
 ### Types
+
 - `feat`: A new feature
 - `fix`: A bug fix
 - `docs`: Documentation only changes
@@ -92,6 +99,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear
 - `chore`: Changes to the build process or auxiliary tools
 
 ### Examples
+
 ```bash
 feat: add authentication plugin
 fix: resolve cache invalidation race condition
@@ -121,18 +129,21 @@ UDSL-Monorepo/
 ### Package Guidelines
 
 #### Core Package (`@udsl/core`)
+
 - Contains the main UDSL class and SWR implementation
 - Should remain framework-agnostic
 - All changes require comprehensive tests
 - Performance is critical here
 
 #### React Adapter (`@udsl/react-adapter`)
+
 - React-specific hooks and components
 - Should follow React best practices
 - Hooks should handle loading, error, and success states
 - Must be compatible with React 17+
 
 #### Plugins (`@udsl/plugin-*`)
+
 - Each plugin should be in its own package
 - Should implement the `UDSLPlugin` interface
 - Must include comprehensive README with examples
@@ -141,6 +152,7 @@ UDSL-Monorepo/
 ## 🎨 Code Style and Standards
 
 ### TypeScript Guidelines
+
 - Use strict TypeScript configuration
 - Prefer explicit types over `any`
 - Use proper generics for reusable components
@@ -165,6 +177,7 @@ function fetchUser(id: any): Promise<any> {
 ```
 
 ### React Guidelines
+
 - Use functional components with hooks
 - Prefer custom hooks for reusable logic
 - Handle loading and error states consistently
@@ -173,14 +186,14 @@ function fetchUser(id: any): Promise<any> {
 ```tsx
 // ✅ Good
 function UserList() {
-  const { data: users, loading, error } = useData<User[]>('users');
-  
+  const { data: users, loading, error } = useData<User[]>("users");
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorMessage error={error} />;
-  
+
   return (
     <ul>
-      {users?.map(user => (
+      {users?.map((user) => (
         <UserItem key={user.id} user={user} />
       ))}
     </ul>
@@ -191,16 +204,17 @@ function UserList() {
 function UserList() {
   const [users, setUsers] = useState();
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     // Manual fetch logic that duplicates UDSL functionality
   }, []);
-  
+
   // Inconsistent loading/error handling
 }
 ```
 
 ### Testing Guidelines
+
 - Write tests for all new functionality
 - Use descriptive test names
 - Test both success and error scenarios
@@ -208,16 +222,16 @@ function UserList() {
 
 ```typescript
 // ✅ Good test structure
-describe('useData hook', () => {
-  it('should return loading state initially', () => {
+describe("useData hook", () => {
+  it("should return loading state initially", () => {
     // Test implementation
   });
-  
-  it('should return data on successful fetch', async () => {
+
+  it("should return data on successful fetch", async () => {
     // Test implementation
   });
-  
-  it('should handle network errors gracefully', async () => {
+
+  it("should handle network errors gracefully", async () => {
     // Test implementation
   });
 });
@@ -226,6 +240,7 @@ describe('useData hook', () => {
 ## 🧪 Testing
 
 ### Running Tests
+
 ```bash
 # Run all tests
 pnpm test
@@ -241,12 +256,14 @@ pnpm test --watch
 ```
 
 ### Writing Tests
+
 - Place tests in `__tests__` directories or alongside source files with `.test.ts` extension
 - Use descriptive test names that explain the behavior
 - Test both happy path and error cases
 - Mock external dependencies appropriately
 
 ### Test Categories
+
 1. **Unit Tests**: Test individual functions and components
 2. **Integration Tests**: Test how different parts work together
 3. **End-to-End Tests**: Test complete user workflows
@@ -254,13 +271,16 @@ pnpm test --watch
 ## 📚 Documentation
 
 ### Code Documentation
+
 - Use JSDoc comments for public APIs
 - Include examples in documentation
 - Document complex algorithms and business logic
 - Keep README files up to date
 
 ### README Updates
+
 When adding new features:
+
 - Update relevant package README files
 - Add examples showing how to use the feature
 - Update the main repository README if needed
@@ -279,12 +299,14 @@ Great bug reports tend to have:
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
 ### Bug Report Template
-```markdown
+
+````markdown
 **Bug Description**
 A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
+
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
@@ -297,13 +319,16 @@ A clear and concise description of what you expected to happen.
 What actually happened.
 
 **Code Sample**
+
 ```typescript
 // Minimal reproducible example
 const udsl = createUDSL({...});
 // ... code that reproduces the issue
 ```
+````
 
 **Environment**
+
 - OS: [e.g. Windows, macOS, Linux]
 - Node.js version: [e.g. 18.17.0]
 - Package version: [e.g. 0.1.0]
@@ -311,7 +336,8 @@ const udsl = createUDSL({...});
 
 **Additional Context**
 Add any other context about the problem here.
-```
+
+````
 
 ## 💡 Feature Requests
 
@@ -338,10 +364,11 @@ A clear and concise description of any alternative solutions you've considered.
 ```typescript
 // How you imagine the feature would work
 const result = udsl.newFeature({...});
-```
+````
 
 **Additional Context**
 Add any other context or screenshots about the feature request here.
+
 ```
 
 ## ➕ Getting Started Contributions
@@ -400,5 +427,10 @@ Thank you for contributing to UDSL! 💫🫱🏾‍🫲🏾
 
 ## License
 
+<<<<<<< Updated upstream
 
 By contributing, you agree that your contributions will be licensed under the same MIT License that covers the project.
+=======
+By contributing, you agree that your contributions will be licensed under the same MIT License that covers the project.
+```
+>>>>>>> Stashed changes

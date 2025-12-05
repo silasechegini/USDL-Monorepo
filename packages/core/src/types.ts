@@ -60,6 +60,22 @@ export type UDSLConfig = {
 export interface UDSLPlugin {
   beforeFetch?: (url: string, init: RequestInit) => Promise<void> | void;
   afterFetch?: (url: string, response: Response) => Promise<void> | void;
+  // Telemetry hooks
+  onCacheHit?: (resourceKey: string, isStale: boolean) => void;
+  onCacheMiss?: (resourceKey: string) => void;
+  onRevalidationStart?: (resourceKey: string) => void;
+  onRevalidationComplete?: (resourceKey: string, success: boolean) => void;
+  onOperationStart?: (
+    operation: string,
+    resourceKey: string,
+    params?: any,
+  ) => void;
+  onOperationComplete?: (
+    operation: string,
+    resourceKey: string,
+    success: boolean,
+    duration: number,
+  ) => void;
 }
 
 export type MutateOperation = "create" | "update" | "patch" | "delete";
