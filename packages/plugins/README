@@ -52,18 +52,18 @@ interface UDSLPlugin {
 
   // HTTP lifecycle hooks
   beforeFetch?: (
-    config: RequestConfig,
-  ) => RequestConfig | Promise<RequestConfig>;
+    url: string, init: RequestInit,
+  ) => void | Promise<void>;
   afterFetch?: (
+    url: string,
     response: Response,
-    config: RequestConfig,
-  ) => Response | Promise<Response>;
+    init: RequestInit,
+  ) => void | Promise<void>;
   onError?: (error: Error, config: RequestConfig) => void | Promise<void>;
 
   // Cache lifecycle hooks
   onCacheHit?: (
-    key: string,
-    data: any,
+    resourceKey: string,
     isStale: boolean,
   ) => void | Promise<void>;
   onCacheMiss?: (key: string) => void | Promise<void>;
@@ -77,14 +77,14 @@ interface UDSLPlugin {
   onOperationStart?: (
     operation: string,
     resourceKey: string,
-    data?: any,
+    params?: any,
   ) => void | Promise<void>;
   onOperationComplete?: (
     operation: string,
     resourceKey: string,
     success: boolean,
     duration: number,
-    result: any,
+    result?: any,
   ) => void | Promise<void>;
 }
 ```

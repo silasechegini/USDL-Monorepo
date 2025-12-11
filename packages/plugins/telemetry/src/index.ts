@@ -205,6 +205,7 @@ export class TelemetryPlugin implements UDSLPlugin {
       span.recordException(error as Error);
     } finally {
       span.end();
+      this.activeSpans.delete(init);
     }
   }
 
@@ -637,7 +638,7 @@ export async function initializeOpenTelemetry(options: {
   if (options.environment) {
     try {
       const resourceModule = await import("@opentelemetry/resources");
-      Resource = resourceModule.defaultResource();
+      Resource = resourceModule;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(
