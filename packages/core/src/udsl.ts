@@ -374,25 +374,24 @@ export class UDSL implements IUDSL {
     params?: any,
   ): Promise<T> {
     const startTime = Date.now();
-    const resultMap: Map<string, T> = new Map();
     this.notifyPlugins("onOperationStart", operation, resourceKey, params);
 
     let success = false;
+    let finalResult = {} as T;
     try {
       const result = await fn();
-      resultMap.set(resourceKey, result);
+      finalResult = result;
       success = true;
       return result;
     } finally {
       const duration = Date.now() - startTime;
       this.notifyPlugins(
         "onOperationComplete",
-        resultMap.size > 0
-          ? { result: resultMap.get(resourceKey), operation }
-          : operation,
+        operation,
         resourceKey,
         success,
         duration,
+        finalResult,
       );
     }
   }

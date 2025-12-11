@@ -82,6 +82,8 @@ interface UDSLPlugin {
   onOperationComplete?: (
     operation: string,
     resourceKey: string,
+    success: boolean,
+    duration: number,
     result: any,
   ) => void | Promise<void>;
 }

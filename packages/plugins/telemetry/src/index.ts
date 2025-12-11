@@ -393,7 +393,7 @@ export class TelemetryPlugin implements UDSLPlugin {
   /**
    * Traces a background revalidation operation with automatic span lifecycle management.
    *
-   * @param spanName - Name for the span (will be formatted with spanNameFormatter)
+   * @param name - Name for the span (will be formatted with spanNameFormatter)
    * @param resourceKey - Resource identifier being revalidated
    * @param operationFn - Function to execute within the span context
    * @param options - Optional span creation options
@@ -419,7 +419,7 @@ export class TelemetryPlugin implements UDSLPlugin {
    * ```
    */
   traceBackgroundRevalidationComplete(
-    spanName: string,
+    name: string,
     resourceKey: string,
     operationFn: (span: Span) => any,
     options?: SpanOptions,
@@ -434,7 +434,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     };
 
     return this.tracer.startActiveSpan(
-      this.options.spanNameFormatter("REVALIDATION", spanName),
+      this.options.spanNameFormatter("REVALIDATION", name),
       optionsConstruct,
       (span) => {
         try {
@@ -586,7 +586,7 @@ export function createTelemetryPlugin(
 /**
  * Helper to initialize OpenTelemetry with common settings
  */
-export function initializeOpenTelemetry(options: {
+export async function initializeOpenTelemetry(options: {
   serviceName: string;
   serviceVersion?: string;
   endpoint?: string;
@@ -595,13 +595,38 @@ export function initializeOpenTelemetry(options: {
   /**
    * This would typically be called at application startup
    * Although implementation would depend on the specific OpenTelemetry setup,
-   * i have here, provided a simple implementation using NodeSDK which is common for Node.js apps.
+   * Here is a simple implementation using NodeSDK, which is common for Node.js apps.
    */
 
-  const { NodeSDK } = require("@opentelemetry/sdk-node");
-  const {
-    getNodeAutoInstrumentations,
-  } = require("@opentelemetry/auto-instrumentations-node");
+  let NodeSDK: any;
+  let getNodeAutoInstrumentations: any;
+
+  try {
+    const sdkModule = await import("@opentelemetry/sdk-node");
+    NodeSDK = sdkModule.NodeSDK;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to import @opentelemetry/sdk-node. ${error.message}`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    const autoInstrumentations = await import(
+      "@opentelemetry/auto-instrumentations-node"
+    );
+    getNodeAutoInstrumentations =
+      autoInstrumentations.getNodeAutoInstrumentations;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to import @opentelemetry/auto-instrumentations-node. ${error.message}`,
+      );
+    }
+    throw error;
+  }
 
   const sdk = new NodeSDK({
     serviceName: options.serviceName,

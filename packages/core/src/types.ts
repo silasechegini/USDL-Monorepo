@@ -75,6 +75,7 @@ export interface UDSLPlugin {
     resourceKey: string,
     success: boolean,
     duration: number,
+    result?: any,
   ) => void;
 }
 

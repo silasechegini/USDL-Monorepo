@@ -300,7 +300,6 @@ Great bug reports tend to have:
 
 ### Bug Report Template
 
-````markdown
 **Bug Description**
 A clear and concise description of what the bug is.
 
@@ -325,7 +324,6 @@ What actually happened.
 const udsl = createUDSL({...});
 // ... code that reproduces the issue
 ```
-````
 
 **Environment**
 
@@ -337,7 +335,6 @@ const udsl = createUDSL({...});
 **Additional Context**
 Add any other context about the problem here.
 
-````
 
 ## 💡 Feature Requests
 
@@ -350,7 +347,7 @@ We use GitHub issues to track feature requests. When proposing a new feature:
 5. **Provide examples** - show how the feature would be used
 
 ### Feature Request Template
-```markdown
+
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is.
 
@@ -364,12 +361,11 @@ A clear and concise description of any alternative solutions you've considered.
 ```typescript
 // How you imagine the feature would work
 const result = udsl.newFeature({...});
-````
+```
 
 **Additional Context**
 Add any other context or screenshots about the feature request here.
 
-```
 
 ## ➕ Getting Started Contributions
 
@@ -427,10 +423,5 @@ Thank you for contributing to UDSL! 💫🫱🏾‍🫲🏾
 
 ## License
 
-<<<<<<< Updated upstream
 
 By contributing, you agree that your contributions will be licensed under the same MIT License that covers the project.
-=======
-By contributing, you agree that your contributions will be licensed under the same MIT License that covers the project.
-```
->>>>>>> Stashed changes
