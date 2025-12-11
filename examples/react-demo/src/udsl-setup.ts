@@ -12,6 +12,73 @@ export function initUDSL(): UDSL {
   });
 
   /**
+   * TELEMETRY & OBSERVABILITY SETUP:
+   *
+   * The telemetry plugin provides comprehensive observability for your UDSL operations.
+   * Note: In a real application, you'd initialize OpenTelemetry BEFORE importing UDSL.
+   *
+   * For production setup, create a separate telemetry.ts file and import it first:
+   *
+   * // telemetry.ts
+   * import { NodeSDK } from '@opentelemetry/sdk-node';
+   * import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+   * import { OTLPTraceExporter } from '@opentelemetry/exporter-otlp-http';
+   *
+   * const exporter = new OTLPTraceExporter({
+   *   url: 'https://api.honeycomb.io/v1/traces', // or your preferred observability platform
+   *   headers: {
+   *     'x-honeycomb-team': process.env.HONEYCOMB_API_KEY,
+   *     'x-honeycomb-dataset': 'udsl-app'
+   *   }
+   * });
+   *
+   * const sdk = new NodeSDK({
+   *   serviceName: 'my-udsl-app',
+   *   serviceVersion: '1.0.0',
+   *   traceExporter: exporter,
+   *   instrumentations: [getNodeAutoInstrumentations()],
+   * });
+   *
+   * sdk.start();
+   *
+   * // main.tsx
+   * import './telemetry'; // Must be first!
+   * import { createRoot } from 'react-dom/client';
+   * import App from './App';
+   */
+
+  const telemetryPlugin = createTelemetryPlugin({
+    serviceName: "react-demo-app",
+    serviceVersion: "0.1.0",
+    defaultAttributes: {
+      "app.environment": "development",
+      "app.framework": "react",
+      "app.demo": true,
+    },
+    traceCacheOperations: true,
+    tracePluginExecution: true,
+    spanNameFormatter: (
+      operation: string,
+      resourceKey: string,
+      method?: string,
+    ) => {
+      // Custom span naming for better observability
+      return `UDSL_${operation.toUpperCase()}_${resourceKey}${
+        method ? `_${method}` : ""
+      }`;
+    },
+  });
+
+  // Register the telemetry plugin
+  udslInstance.registerPlugin(telemetryPlugin);
+
+
+  /**
+   * AUTHENTICATION SETUP:
+   *
+   * The auth plugin adds authentication tokens to your UDSL requests.
+   * Below are several practical examples of how to implement token retrieval.
+   * 
    * PRACTICAL AUTH EXAMPLES:
    *
    * Example 1: Token from localStorage (most common in SPAs)
@@ -114,67 +181,7 @@ export function initUDSL(): UDSL {
   // Register the auth plugin
   udslInstance.registerPlugin(authPlugin);
 
-  /**
-   * TELEMETRY & OBSERVABILITY SETUP:
-   *
-   * The telemetry plugin provides comprehensive observability for your UDSL operations.
-   * Note: In a real application, you'd initialize OpenTelemetry BEFORE importing UDSL.
-   *
-   * For production setup, create a separate telemetry.ts file and import it first:
-   *
-   * // telemetry.ts
-   * import { NodeSDK } from '@opentelemetry/sdk-node';
-   * import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-   * import { OTLPTraceExporter } from '@opentelemetry/exporter-otlp-http';
-   *
-   * const exporter = new OTLPTraceExporter({
-   *   url: 'https://api.honeycomb.io/v1/traces', // or your preferred observability platform
-   *   headers: {
-   *     'x-honeycomb-team': process.env.HONEYCOMB_API_KEY,
-   *     'x-honeycomb-dataset': 'udsl-app'
-   *   }
-   * });
-   *
-   * const sdk = new NodeSDK({
-   *   serviceName: 'my-udsl-app',
-   *   serviceVersion: '1.0.0',
-   *   traceExporter: exporter,
-   *   instrumentations: [getNodeAutoInstrumentations()],
-   * });
-   *
-   * sdk.start();
-   *
-   * // main.tsx
-   * import './telemetry'; // Must be first!
-   * import { createRoot } from 'react-dom/client';
-   * import App from './App';
-   */
-
-  const telemetryPlugin = createTelemetryPlugin({
-    serviceName: "react-demo-app",
-    serviceVersion: "0.1.0",
-    defaultAttributes: {
-      "app.environment": "development",
-      "app.framework": "react",
-      "app.demo": true,
-    },
-    traceCacheOperations: true,
-    tracePluginExecution: true,
-    spanNameFormatter: (
-      operation: string,
-      resourceKey: string,
-      method?: string,
-    ) => {
-      // Custom span naming for better observability
-      return `UDSL_${operation.toUpperCase()}_${resourceKey}${
-        method ? `_${method}` : ""
-      }`;
-    },
-  });
-
-  // Register the telemetry plugin
-  udslInstance.registerPlugin(telemetryPlugin);
-
+  
   /**
    * Plugin Order Matters:
    *

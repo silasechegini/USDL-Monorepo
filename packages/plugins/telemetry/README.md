@@ -26,6 +26,11 @@ pnpm add @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node
 
 ```typescript
 // telemetry.ts - Initialize this BEFORE importing UDSL
+/**
+ * The implementation also includes a helper function that can be 
+ * used in the event that the user prefers this approach than setting
+ * up own initialization function.
+ */
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 

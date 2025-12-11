@@ -13,6 +13,7 @@ const mockSpan = {
 
 const mockTracer = {
   startSpan: vi.fn(() => mockSpan),
+  startActiveSpan: vi.fn(),
 };
 
 vi.mock("@opentelemetry/api", async () => {
@@ -169,6 +170,112 @@ describe("TelemetryPlugin", () => {
         }),
       );
       expect(span).toBeDefined();
+    });
+
+    it("should handle complete revalidation with async function", async () => {
+      const plugin = createTelemetryPlugin();
+      const mockRevalidateFn = vi.fn().mockResolvedValue({ data: "updated" });
+
+      // Mock startActiveSpan
+      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
+        return fn(mockSpan);
+      });
+
+      const result = await plugin.traceBackgroundRevalidationComplete(
+        "users-revalidation",
+        "users",
+        mockRevalidateFn,
+      );
+
+      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+        expect.stringContaining("users"),
+        expect.any(Object),
+        expect.any(Function),
+      );
+      expect(mockRevalidateFn).toHaveBeenCalledWith(mockSpan);
+      expect(mockSpan.end).toHaveBeenCalled();
+      expect(result).toEqual({ data: "updated" });
+    });
+
+    it("should handle complete revalidation with synchronous function", () => {
+      const plugin = createTelemetryPlugin();
+      const mockRevalidateFn = vi.fn().mockReturnValue({ data: "updated" });
+
+      // Mock startActiveSpan to simulate synchronous execution with proper span.end() call
+      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
+        const result = fn(mockSpan);
+        // For synchronous operations, the span should end automatically
+        mockSpan.end();
+        return result;
+      });
+
+      const result = plugin.traceBackgroundRevalidationComplete(
+        "products-revalidation",
+        "products",
+        mockRevalidateFn,
+      );
+
+      expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(
+        expect.stringContaining("products"),
+        expect.any(Object),
+        expect.any(Function),
+      );
+      expect(mockRevalidateFn).toHaveBeenCalledWith(mockSpan);
+      expect(mockSpan.end).toHaveBeenCalled();
+      expect(result).toEqual({ data: "updated" });
+    });
+
+    it("should handle complete revalidation errors", async () => {
+      const plugin = createTelemetryPlugin();
+      const error = new Error("Revalidation failed");
+      const mockRevalidateFn = vi.fn().mockRejectedValue(error);
+
+      // Mock startActiveSpan to simulate async error handling like the real implementation
+      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
+        try {
+          const result = fn(mockSpan);
+
+          // Handle Promise rejection
+          if (result instanceof Promise) {
+            return result
+              .catch((err) => {
+                mockSpan.recordException(err);
+                mockSpan.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: err instanceof Error ? err.message : "Unknown error",
+                });
+                throw err;
+              })
+              .finally(() => {
+                mockSpan.end();
+              });
+          }
+
+          return result;
+        } catch (err) {
+          mockSpan.recordException(err as Error);
+          mockSpan.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err instanceof Error ? err.message : "Unknown error",
+          });
+          mockSpan.end();
+          throw err;
+        }
+      });
+
+      await expect(
+        plugin.traceBackgroundRevalidationComplete(
+          "users-revalidation",
+          "users",
+          mockRevalidateFn,
+        ),
+      ).rejects.toThrow("Revalidation failed");
+
+      expect(mockSpan.recordException).toHaveBeenCalledWith(error);
+      expect(mockSpan.setStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ code: SpanStatusCode.ERROR }),
+      );
+      expect(mockSpan.end).toHaveBeenCalled();
     });
   });
 

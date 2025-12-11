@@ -355,6 +355,10 @@ export class UDSL implements IUDSL {
           hook.apply(plugin, args);
         } catch (error) {
           console.warn(`Plugin hook ${hookName} failed:`, error);
+          if (error instanceof Error) {
+            throw new Error(`Plugin hook ${hookName} failed: ${error.message}`);
+          }
+          throw error;
         }
       }
     }
@@ -370,18 +374,22 @@ export class UDSL implements IUDSL {
     params?: any,
   ): Promise<T> {
     const startTime = Date.now();
+    const resultMap: Map<string, T> = new Map();
     this.notifyPlugins("onOperationStart", operation, resourceKey, params);
 
     let success = false;
     try {
       const result = await fn();
+      resultMap.set(resourceKey, result);
       success = true;
       return result;
     } finally {
       const duration = Date.now() - startTime;
       this.notifyPlugins(
         "onOperationComplete",
-        operation,
+        resultMap.size > 0
+          ? { result: resultMap.get(resourceKey), operation }
+          : operation,
         resourceKey,
         success,
         duration,
