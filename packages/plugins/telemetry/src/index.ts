@@ -150,19 +150,27 @@ export class TelemetryPlugin implements UDSLPlugin {
    *
    * @param url - The URL that was fetched
    * @param response - The Response object returned by fetch
+   * @param init - The RequestInit object used for the fetch request
    * @returns A promise that resolves when the span is finalized
    *
    * @remarks
    * This method:
-   * - Retrieves the span created in beforeFetch
+   * - Retrieves the span created in beforeFetch using the RequestInit object
    * - Adds response status code, status text, and size as attributes
    * - Sets span status to OK or ERROR based on response.ok
    * - Adds success or error events with timestamps
    * - Ends the span
+   *
+   * The RequestInit parameter ensures correct span matching for concurrent requests
+   * by using the WeakMap keyed by the RequestInit object.
    */
-  async afterFetch(url: string, response: Response): Promise<void> {
-    // Find the corresponding span
-    const span = this.findActiveSpan(url);
+  async afterFetch(
+    url: string,
+    response: Response,
+    init: RequestInit,
+  ): Promise<void> {
+    // Retrieve the corresponding span using the RequestInit object
+    const span = this.activeSpans.get(init);
     if (!span) return;
 
     try {
@@ -550,23 +558,6 @@ export class TelemetryPlugin implements UDSLPlugin {
     }
     return Math.abs(hash).toString(36);
   }
-
-  /**
-   * Finds the active span associated with a URL.
-   *
-   * @param url - The URL to find the span for
-   * @returns The associated span, or the current active span as fallback
-   * @private
-   *
-   * @remarks
-   * This is a simplified implementation. In production, you may need a more
-   * sophisticated mechanism to match spans, especially for concurrent requests.
-   */
-  private findActiveSpan(url: string): Span | undefined {
-    // This is a simplified implementation
-    // In a real scenario, you might need a more sophisticated way to match spans
-    return this.activeSpans.get(url) || trace.getActiveSpan();
-  }
 }
 
 /**
@@ -628,7 +619,9 @@ export async function initializeOpenTelemetry(options: {
   // Import OTLP exporter if endpoint is provided
   if (options.endpoint) {
     try {
-      const exporterModule = await import("@opentelemetry/exporter-trace-otlp-http");
+      const exporterModule = await import(
+        "@opentelemetry/exporter-trace-otlp-http"
+      );
       OTLPTraceExporter = exporterModule.OTLPTraceExporter;
     } catch (error) {
       if (error instanceof Error) {

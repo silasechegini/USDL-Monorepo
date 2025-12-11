@@ -59,12 +59,19 @@ export type UDSLConfig = {
 
 export interface UDSLPlugin {
   beforeFetch?: (url: string, init: RequestInit) => Promise<void> | void;
-  afterFetch?: (url: string, response: Response) => Promise<void> | void;
+  afterFetch?: (
+    url: string,
+    response: Response,
+    init: RequestInit,
+  ) => Promise<void> | void;
   // Telemetry hooks
-  onCacheHit?: (resourceKey: string, isStale: boolean) => Promise<void> |void;
-  onCacheMiss?: (resourceKey: string) => Promise<void> |void;
-  onRevalidationStart?: (resourceKey: string) => Promise<void> |void;
-  onRevalidationComplete?: (resourceKey: string, success: boolean) => Promise<void> |void;
+  onCacheHit?: (resourceKey: string, isStale: boolean) => Promise<void> | void;
+  onCacheMiss?: (resourceKey: string) => Promise<void> | void;
+  onRevalidationStart?: (resourceKey: string) => Promise<void> | void;
+  onRevalidationComplete?: (
+    resourceKey: string,
+    success: boolean,
+  ) => Promise<void> | void;
   onOperationStart?: (
     operation: string,
     resourceKey: string,

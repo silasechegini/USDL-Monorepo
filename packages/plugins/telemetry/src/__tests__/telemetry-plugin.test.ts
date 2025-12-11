@@ -91,13 +91,16 @@ describe("TelemetryPlugin", () => {
     it("should record successful response", async () => {
       const plugin = createTelemetryPlugin();
       const url = "https://api.example.com/users";
+      const init: RequestInit = { method: "GET" };
       const response = new Response('{"data": "test"}', {
         status: 200,
         statusText: "OK",
         headers: { "content-type": "application/json" },
       });
 
-      await plugin.afterFetch!(url, response);
+      // Call beforeFetch first to set up the span
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
 
       expect(mockSpan.setAttributes).toHaveBeenCalled();
       expect(mockSpan.setStatus).toHaveBeenCalledWith({
@@ -108,12 +111,15 @@ describe("TelemetryPlugin", () => {
     it("should handle error response", async () => {
       const plugin = createTelemetryPlugin();
       const url = "https://api.example.com/users/999";
+      const init: RequestInit = { method: "GET" };
       const response = new Response('{"error": "Not found"}', {
         status: 404,
         statusText: "Not Found",
       });
 
-      await plugin.afterFetch!(url, response);
+      // Call beforeFetch first to set up the span
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
 
       expect(mockSpan.setStatus).toHaveBeenCalledWith(
         expect.objectContaining({ code: SpanStatusCode.ERROR }),

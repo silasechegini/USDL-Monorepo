@@ -27,9 +27,13 @@ export class UDSL implements IUDSL {
     }
   }
 
-  private async runAfterFetch(url: string, response: Response) {
+  private async runAfterFetch(
+    url: string,
+    response: Response,
+    init: RequestInit,
+  ) {
     for (const p of this.plugins) {
-      if (p.afterFetch) await p.afterFetch(url, response);
+      if (p.afterFetch) await p.afterFetch(url, response, init);
     }
   }
 
@@ -63,7 +67,7 @@ export class UDSL implements IUDSL {
 
     const res = await fetch(url, init);
 
-    await this.runAfterFetch(url, res);
+    await this.runAfterFetch(url, res, init);
 
     if (!res.ok) throw new Error(`Network error: ${res.status}`);
 
@@ -198,7 +202,7 @@ export class UDSL implements IUDSL {
 
     const res = await fetch(url, init);
 
-    await this.runAfterFetch(url, res);
+    await this.runAfterFetch(url, res, init);
 
     if (!res.ok) throw new Error(`Network error: ${res.status}`);
 
