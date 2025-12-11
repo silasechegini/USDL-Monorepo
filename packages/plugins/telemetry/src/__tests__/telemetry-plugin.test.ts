@@ -380,4 +380,195 @@ describe("TelemetryPlugin", () => {
       expect(span).toBeDefined();
     });
   });
+
+  describe("resource key extraction (via beforeFetch)", () => {
+    it("should extract resource key from standard URL paths", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/users/123/posts/456";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "users.123.posts.456",
+          }),
+        }),
+      );
+    });
+
+    it("should extract resource key from single segment paths", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/users";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "users",
+          }),
+        }),
+      );
+    });
+
+    it("should use hostname for root paths", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "api.example.com",
+          }),
+        }),
+      );
+    });
+
+    it("should handle paths with trailing slashes", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/api/v1/products/";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "api.v1.products",
+          }),
+        }),
+      );
+    });
+
+    it("should handle query parameters in URLs", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/search?q=test&limit=10";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "search",
+          }),
+        }),
+      );
+    });
+
+    it("should generate hash-based key for invalid URLs", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "not-a-valid-url";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      const callArgs = mockTracer.startSpan.mock.calls[0] as any[];
+      const attributes = callArgs[1]?.attributes as Record<string, any>;
+      expect(attributes["udsl.resource_key"]).toMatch(
+        /^invalid_url_[a-z0-9]+$/,
+      );
+    });
+
+    it("should generate consistent hash for same invalid URL", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "invalid://example";
+      const init1: RequestInit = { method: "GET" };
+      const init2: RequestInit = { method: "POST" };
+
+      await plugin.beforeFetch!(url, init1);
+      const firstCall = mockTracer.startSpan.mock.calls[0] as any[];
+      const firstResourceKey = firstCall[1]?.attributes["udsl.resource_key"];
+
+      vi.clearAllMocks();
+
+      await plugin.beforeFetch!(url, init2);
+      const secondCall = mockTracer.startSpan.mock.calls[0] as any[];
+      const secondResourceKey = secondCall[1]?.attributes["udsl.resource_key"];
+
+      expect(firstResourceKey).toBe(secondResourceKey);
+    });
+
+    it("should generate different hashes for different invalid URLs", async () => {
+      const plugin = createTelemetryPlugin();
+      const url1 = "invalid-url-1";
+      const url2 = "invalid-url-2";
+      const init1: RequestInit = { method: "GET" };
+      const init2: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url1, init1);
+      const firstCall = mockTracer.startSpan.mock.calls[0] as any[];
+      const firstResourceKey = firstCall[1]?.attributes["udsl.resource_key"];
+
+      vi.clearAllMocks();
+
+      await plugin.beforeFetch!(url2, init2);
+      const secondCall = mockTracer.startSpan.mock.calls[0] as any[];
+      const secondResourceKey = secondCall[1]?.attributes["udsl.resource_key"];
+
+      expect(firstResourceKey).not.toBe(secondResourceKey);
+    });
+
+    it("should handle URLs with ports", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com:8080/api/users";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "api.users",
+          }),
+        }),
+      );
+    });
+
+    it("should handle URLs with encoded characters", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com/users/john%20doe/profile";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "users.john%20doe.profile",
+          }),
+        }),
+      );
+    });
+
+    it("should handle localhost URLs", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "http://localhost:3000/api/data";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "api.data",
+          }),
+        }),
+      );
+    });
+  });
 });

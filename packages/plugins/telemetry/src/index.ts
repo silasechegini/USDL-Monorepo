@@ -178,7 +178,6 @@ export class TelemetryPlugin implements UDSLPlugin {
         span.setStatus({ code: SpanStatusCode.OK });
         span.addEvent("udsl.fetch.success", {
           "http.status_code": response.status,
-          timestamp: Date.now(),
         });
       } else {
         span.setStatus({
@@ -188,7 +187,6 @@ export class TelemetryPlugin implements UDSLPlugin {
         span.addEvent("udsl.fetch.error", {
           "http.status_code": response.status,
           "http.status_text": response.statusText,
-          timestamp: Date.now(),
         });
       }
     } catch (error) {
@@ -254,10 +252,10 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     return context.with(trace.setSpan(context.active(), span), async () => {
       try {
-        span.addEvent(`udsl.${operation}.start`, { timestamp: Date.now() });
+        span.addEvent(`udsl.${operation}.start`);
         const result = await fn(span);
         span.setStatus({ code: SpanStatusCode.OK });
-        span.addEvent(`udsl.${operation}.success`, { timestamp: Date.now() });
+        span.addEvent(`udsl.${operation}.success`);
         return result;
       } catch (error) {
         span.setStatus({
@@ -267,7 +265,6 @@ export class TelemetryPlugin implements UDSLPlugin {
         span.recordException(error as Error);
         span.addEvent(`udsl.${operation}.error`, {
           error: error instanceof Error ? error.message : "Unknown error",
-          timestamp: Date.now(),
         });
         throw error;
       } finally {
@@ -305,7 +302,6 @@ export class TelemetryPlugin implements UDSLPlugin {
     span.addEvent("udsl.cache.hit", {
       "udsl.resource_key": resourceKey,
       "udsl.cache.is_stale": isStale,
-      timestamp: Date.now(),
     });
 
     span.setStatus({ code: SpanStatusCode.OK });
@@ -338,7 +334,6 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     span.addEvent("udsl.cache.miss", {
       "udsl.resource_key": resourceKey,
-      timestamp: Date.now(),
     });
 
     span.setStatus({ code: SpanStatusCode.OK });
@@ -393,7 +388,7 @@ export class TelemetryPlugin implements UDSLPlugin {
   /**
    * Traces a background revalidation operation with automatic span lifecycle management.
    *
-   * @param name - Name for the span (will be formatted with spanNameFormatter)
+   * @param spanName - Name for the span (will be formatted with spanNameFormatter)
    * @param resourceKey - Resource identifier being revalidated
    * @param operationFn - Function to execute within the span context
    * @param options - Optional span creation options
@@ -419,7 +414,7 @@ export class TelemetryPlugin implements UDSLPlugin {
    * ```
    */
   traceBackgroundRevalidationComplete(
-    name: string,
+    spanName: string,
     resourceKey: string,
     operationFn: (span: Span) => any,
     options?: SpanOptions,
@@ -434,7 +429,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     };
 
     return this.tracer.startActiveSpan(
-      this.options.spanNameFormatter("REVALIDATION", name),
+      this.options.spanNameFormatter("REVALIDATION", spanName),
       optionsConstruct,
       (span) => {
         try {
@@ -600,6 +595,8 @@ export async function initializeOpenTelemetry(options: {
 
   let NodeSDK: any;
   let getNodeAutoInstrumentations: any;
+  let OTLPTraceExporter: any;
+  let Resource: any;
 
   try {
     const sdkModule = await import("@opentelemetry/sdk-node");
@@ -628,11 +625,57 @@ export async function initializeOpenTelemetry(options: {
     throw error;
   }
 
-  const sdk = new NodeSDK({
+  // Import OTLP exporter if endpoint is provided
+  if (options.endpoint) {
+    try {
+      const exporterModule = await import("@opentelemetry/exporter-trace-otlp-http");
+      OTLPTraceExporter = exporterModule.OTLPTraceExporter;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(
+          `Failed to import @opentelemetry/exporter-trace-otlp-http. ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  // Import Resource for environment configuration
+  if (options.environment) {
+    try {
+      const resourceModule = await import("@opentelemetry/resources");
+      Resource = resourceModule.defaultResource();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(
+          `Failed to import @opentelemetry/resources. ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  const sdkConfig: any = {
     serviceName: options.serviceName,
     serviceVersion: options.serviceVersion || "1.0.0",
     instrumentations: [getNodeAutoInstrumentations()],
-  });
+  };
+
+  // Configure exporter if endpoint provided
+  if (options.endpoint && OTLPTraceExporter) {
+    sdkConfig.traceExporter = new OTLPTraceExporter({
+      url: options.endpoint,
+    });
+  }
+
+  // Add environment to resource attributes
+  if (options.environment && Resource) {
+    sdkConfig.resource = new Resource({
+      "deployment.environment": options.environment,
+    });
+  }
+
+  const sdk = new NodeSDK(sdkConfig);
 
   sdk.start();
 }

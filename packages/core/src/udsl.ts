@@ -354,11 +354,8 @@ export class UDSL implements IUDSL {
         try {
           hook.apply(plugin, args);
         } catch (error) {
+          // Plugin failures should not be fatal. A warning should suffice.
           console.warn(`Plugin hook ${hookName} failed:`, error);
-          if (error instanceof Error) {
-            throw new Error(`Plugin hook ${hookName} failed: ${error.message}`);
-          }
-          throw error;
         }
       }
     }
@@ -377,7 +374,7 @@ export class UDSL implements IUDSL {
     this.notifyPlugins("onOperationStart", operation, resourceKey, params);
 
     let success = false;
-    let finalResult = {} as T;
+    let finalResult: T | undefined = undefined;
     try {
       const result = await fn();
       finalResult = result;
