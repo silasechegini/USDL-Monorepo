@@ -160,7 +160,11 @@ export function initUDSL(): UDSL {
     },
     traceCacheOperations: true,
     tracePluginExecution: true,
-    spanNameFormatter: (operation, resourceKey, method) => {
+    spanNameFormatter: (
+      operation: string,
+      resourceKey: string,
+      method?: string,
+    ) => {
       // Custom span naming for better observability
       return `UDSL_${operation.toUpperCase()}_${resourceKey}${
         method ? `_${method}` : ""

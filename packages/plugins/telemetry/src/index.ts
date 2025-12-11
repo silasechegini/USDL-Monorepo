@@ -80,7 +80,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     // Inject trace context into headers for distributed tracing
     const headers = new Headers(init.headers);
     propagation.inject(context.active(), headers, {
-      set: (headers, key, value) => headers.set(key, value),
+      set: (headers: Headers, key: string, value: string) => headers.set(key, value),
     });
     init.headers = headers;
 
