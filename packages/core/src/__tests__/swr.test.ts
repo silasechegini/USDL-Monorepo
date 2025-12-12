@@ -74,6 +74,9 @@ describe("UDSL SWR Implementation", () => {
     // Should get stale data immediately
     expect(data).toEqual({ id: 1, name: "John" });
 
+    // Allow background revalidation to start
+    await Promise.resolve();
+
     // Should have triggered background revalidation
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
@@ -209,6 +212,9 @@ describe("UDSL SWR Implementation", () => {
 
     // Trigger revalidation but don't wait
     udsl.fetchResource("users");
+
+    // Allow revalidation to start
+    await Promise.resolve();
 
     // Verify revalidation is in progress
     const cacheInfo = udsl.getCacheInfo("users");

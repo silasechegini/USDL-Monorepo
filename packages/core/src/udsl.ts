@@ -123,16 +123,17 @@ export class UDSL implements IUDSL {
     const resource = this.config.resources[key];
     if (!resource?.get || !resource.cache) return;
 
-    // Notify telemetry plugins about revalidation start
-    this.notifyPlugins("onRevalidationStart", key);
+    // Mark as revalidating BEFORE starting the async promise
+    // This ensures isRevalidating is set synchronously
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      cached.isRevalidating = true;
+    }
 
     // Create and immediately register the promise to prevent race conditions
     const revalidationPromise = (async () => {
-      // Mark as revalidating
-      const cached = this.cache.get(cacheKey);
-      if (cached) {
-        cached.isRevalidating = true;
-      }
+      // Notify telemetry plugins about revalidation start
+      await this.notifyPlugins("onRevalidationStart", key);
 
       let success = false;
       try {
@@ -160,8 +161,8 @@ export class UDSL implements IUDSL {
     })();
 
     // Register the promise immediately after creation.
-    // This prevents duplicate revalidations within a single event loop tick,
-    // but is not truly atomic across all possible concurrent accesses.
+    // This prevents duplicate revalidations by ensuring the promise is tracked
+    // before any async operations can complete and allow race conditions.
     this.revalidationPromises.set(cacheKey, revalidationPromise);
 
     // Clean up the promise when done
@@ -242,14 +243,14 @@ export class UDSL implements IUDSL {
 
       if (!isExpired) {
         // Fresh data - return immediately
-        this.notifyPlugins("onCacheHit", key, false);
+        await this.notifyPlugins("onCacheHit", key, false);
         return cached.data as T;
       }
 
       if (isExpired && !cached.isRevalidating) {
         // Stale data - serve immediately and revalidate in background
         cached.isStale = true;
-        this.notifyPlugins("onCacheHit", key, true);
+        await this.notifyPlugins("onCacheHit", key, true);
         this.revalidateInBackground<T>(key, params);
         return cached.data as T;
       }
@@ -262,7 +263,7 @@ export class UDSL implements IUDSL {
     }
 
     // No cached data - cache miss
-    this.notifyPlugins("onCacheMiss", key);
+    await this.notifyPlugins("onCacheMiss", key);
 
     // No cached data - fetch fresh data synchronously
     const data = await this.performFetch<T>(key, params);
@@ -351,20 +352,15 @@ export class UDSL implements IUDSL {
   /**
    * Notify plugins about telemetry events
    */
-  private async notifyPlugins<K extends keyof UDSLPlugin>(
-    hookName: K,
-    ...args: UDSLPlugin[K] extends ((...params: infer A) => any) | undefined
-      ? A
-      : never
+  private async notifyPlugins(
+    hookName: keyof UDSLPlugin,
+    ...args: any[]
   ): Promise<void> {
     for (const plugin of this.plugins) {
       const hook = plugin[hookName];
       if (hook && typeof hook === "function") {
         try {
-          const result = (hook as Function).apply(
-            plugin,
-            args,
-          );
+          const result = (hook as Function).apply(plugin, args);
           // Await if the result is a Promise
           if (result instanceof Promise) {
             await result;
@@ -387,7 +383,12 @@ export class UDSL implements IUDSL {
     params?: any,
   ): Promise<T> {
     const startTime = Date.now();
-    this.notifyPlugins("onOperationStart", operation, resourceKey, params);
+    await this.notifyPlugins(
+      "onOperationStart",
+      operation,
+      resourceKey,
+      params,
+    );
 
     let success = false;
     let finalResult: T | undefined = undefined;
@@ -398,7 +399,7 @@ export class UDSL implements IUDSL {
       return result;
     } finally {
       const duration = Date.now() - startTime;
-      this.notifyPlugins(
+      await this.notifyPlugins(
         "onOperationComplete",
         operation,
         resourceKey,

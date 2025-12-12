@@ -13,7 +13,7 @@ import {
   defaultResource,
 } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import { NodeSDK, NodeSDKConfiguration } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 
 export interface TelemetryPluginOptions {
@@ -436,8 +436,8 @@ export class TelemetryPlugin implements UDSLPlugin {
     options?: SpanOptions,
   ): any {
     // Validate parameters
-    this.validateSpanParameter(spanName, 'spanName');
-    this.validateSpanParameter(resourceKey, 'resourceKey');
+    this.validateSpanParameter(spanName, "spanName");
+    this.validateSpanParameter(resourceKey, "resourceKey");
 
     const optionsConstruct: SpanOptions = options || {
       kind: SpanKind.INTERNAL,
@@ -459,6 +459,21 @@ export class TelemetryPlugin implements UDSLPlugin {
           });
           const result = operationFn(span);
 
+          // Handle Promises/Async operations
+          if (result instanceof Promise) {
+            return result.catch((error) => {
+              // Record exception for async errors
+              span.recordException(error as Error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message:
+                  error instanceof Error ? error.message : "Unknown error",
+              });
+              throw error;
+            });
+          }
+
+          // For synchronous operations, the span ends automatically after this block
           return result;
         } catch (error) {
           // Record exception and set status if an error occurs
@@ -560,7 +575,7 @@ export class TelemetryPlugin implements UDSLPlugin {
       if (segments.length > 0) {
         return segments.join(".");
       }
-  
+
       // Use host for root paths; if host is missing, use a hash to avoid collisions
       if (urlObj.host) {
         return urlObj.host;
@@ -621,13 +636,13 @@ export async function initializeOpenTelemetry(options: {
    * Here is a simple implementation using NodeSDK, which is common for Node.js apps.
    */
 
-  const sdkConfig: any = {
+  const sdkConfig: Partial<NodeSDKConfiguration> | undefined = {
     resource: defaultResource().merge(
       resourceFromAttributes({
         "service.name": options.serviceName,
         "service.version": options.serviceVersion || "1.0.0",
         ...(options.environment && {
-          'deployment.environment.name': options.environment,
+          "deployment.environment.name": options.environment,
         }),
       }),
     ),
@@ -644,6 +659,9 @@ export async function initializeOpenTelemetry(options: {
   const sdk = new NodeSDK(sdkConfig);
 
   sdk.start();
+
+  // return an instance of the SDK for potential later shutdown
+  return sdk;
 }
 
 export * from "@opentelemetry/api";

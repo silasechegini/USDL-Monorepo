@@ -13,7 +13,24 @@ const mockSpan = {
 
 const mockTracer = {
   startSpan: vi.fn(() => mockSpan),
-  startActiveSpan: vi.fn(),
+  /**
+   * Mock startActiveSpan to accurately simulate OpenTelemetry's actual behavior:
+   *
+   * Real OpenTelemetry behavior:
+   * - For sync operations: Executes callback, returns result, does NOT auto-end span
+   * - For async operations: Executes callback, returns Promise, does NOT auto-end span
+   * - Span lifecycle is entirely managed by user code (must call span.end())
+   *
+   * This realistic mock helps catch span leak bugs where span.end() isn't called.
+   */
+  startActiveSpan: vi.fn((name, options, fn) => {
+    // Execute the callback with the mock span (simulates setting active span in context)
+    const result = fn(mockSpan);
+
+    // Return the result as-is, whether it's a value or Promise
+    // The real API does NOT call span.end() automatically - user must do it
+    return result;
+  }),
 };
 
 vi.mock("@opentelemetry/api", async () => {
@@ -182,11 +199,6 @@ describe("TelemetryPlugin", () => {
       const plugin = createTelemetryPlugin();
       const mockRevalidateFn = vi.fn().mockResolvedValue({ data: "updated" });
 
-      // Mock startActiveSpan
-      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
-        return fn(mockSpan);
-      });
-
       const result = await plugin.traceBackgroundRevalidationComplete(
         "users-revalidation",
         "users",
@@ -206,14 +218,6 @@ describe("TelemetryPlugin", () => {
     it("should handle complete revalidation with synchronous function", () => {
       const plugin = createTelemetryPlugin();
       const mockRevalidateFn = vi.fn().mockReturnValue({ data: "updated" });
-
-      // Mock startActiveSpan to simulate synchronous execution with proper span.end() call
-      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
-        const result = fn(mockSpan);
-        // For synchronous operations, the span should end automatically
-        mockSpan.end();
-        return result;
-      });
 
       const result = plugin.traceBackgroundRevalidationComplete(
         "products-revalidation",
@@ -235,39 +239,6 @@ describe("TelemetryPlugin", () => {
       const plugin = createTelemetryPlugin();
       const error = new Error("Revalidation failed");
       const mockRevalidateFn = vi.fn().mockRejectedValue(error);
-
-      // Mock startActiveSpan to simulate async error handling like the real implementation
-      mockTracer.startActiveSpan = vi.fn((name, options, fn) => {
-        try {
-          const result = fn(mockSpan);
-
-          // Handle Promise rejection
-          if (result instanceof Promise) {
-            return result
-              .catch((err) => {
-                mockSpan.recordException(err);
-                mockSpan.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: err instanceof Error ? err.message : "Unknown error",
-                });
-                throw err;
-              })
-              .finally(() => {
-                mockSpan.end();
-              });
-          }
-
-          return result;
-        } catch (err) {
-          mockSpan.recordException(err as Error);
-          mockSpan.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: err instanceof Error ? err.message : "Unknown error",
-          });
-          mockSpan.end();
-          throw err;
-        }
-      });
 
       await expect(
         plugin.traceBackgroundRevalidationComplete(
@@ -543,6 +514,42 @@ describe("TelemetryPlugin", () => {
       );
     });
 
+    it("should use hostname for URLs with host but no path (no trailing slash)", async () => {
+      const plugin = createTelemetryPlugin();
+      const url = "https://api.example.com";
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      expect(mockTracer.startSpan).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            "udsl.resource_key": "api.example.com",
+          }),
+        }),
+      );
+    });
+
+    it("should handle edge case URLs with no host and no path segments", async () => {
+      const plugin = createTelemetryPlugin();
+      // Test with a scheme-only URL pattern that might occur in edge cases
+      // While most valid URLs will have either a host or path segments,
+      // this tests the defensive coding in extractResourceKey
+      // Using a minimal valid URL that browsers/Node.js accept
+      const url = "http://:8080"; // URL with port but no hostname
+      const init: RequestInit = { method: "GET" };
+
+      await plugin.beforeFetch!(url, init);
+
+      const callArgs = mockTracer.startSpan.mock.calls[0] as any[];
+      const attributes = callArgs[1]?.attributes as Record<string, any>;
+      // Should use host (which will be ":8080") or fall back to hash
+      expect(attributes["udsl.resource_key"]).toBeDefined();
+      expect(typeof attributes["udsl.resource_key"]).toBe("string");
+      expect(attributes["udsl.resource_key"].length).toBeGreaterThan(0);
+    });
+
     it("should handle URLs with encoded characters", async () => {
       const plugin = createTelemetryPlugin();
       const url = "https://api.example.com/users/john%20doe/profile";
@@ -581,7 +588,7 @@ describe("TelemetryPlugin", () => {
   describe("Parameter Validation (validateSpanParameter)", () => {
     it("should reject empty string for spanName", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "",
@@ -593,7 +600,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject whitespace-only string for spanName", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "   \t\n  ",
@@ -606,7 +613,7 @@ describe("TelemetryPlugin", () => {
     it("should reject spanName exceeding 255 characters", () => {
       const plugin = createTelemetryPlugin();
       const longName = "a".repeat(256);
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           longName,
@@ -619,7 +626,7 @@ describe("TelemetryPlugin", () => {
     it("should accept spanName with exactly 255 characters", () => {
       const plugin = createTelemetryPlugin();
       const maxName = "a".repeat(255);
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           maxName,
@@ -631,7 +638,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject spanName with null byte (\\x00)", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "span\x00name",
@@ -643,7 +650,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject spanName with control characters (\\x01-\\x1F)", () => {
       const plugin = createTelemetryPlugin();
-      
+
       // Test a few control characters
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
@@ -664,7 +671,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject spanName with DEL character (\\x7F)", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "span\x7Fname",
@@ -676,7 +683,7 @@ describe("TelemetryPlugin", () => {
 
     it("should accept spanName with valid special characters", () => {
       const plugin = createTelemetryPlugin();
-      
+
       // These should all be acceptable
       const validNames = [
         "span-name",
@@ -706,7 +713,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject empty string for resourceKey", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "valid-span",
@@ -718,7 +725,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject whitespace-only string for resourceKey", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "valid-span",
@@ -731,7 +738,7 @@ describe("TelemetryPlugin", () => {
     it("should reject resourceKey exceeding 255 characters", () => {
       const plugin = createTelemetryPlugin();
       const longKey = "r".repeat(256);
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "valid-span",
@@ -744,7 +751,7 @@ describe("TelemetryPlugin", () => {
     it("should accept resourceKey with exactly 255 characters", () => {
       const plugin = createTelemetryPlugin();
       const maxKey = "r".repeat(255);
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "valid-span",
@@ -756,7 +763,7 @@ describe("TelemetryPlugin", () => {
 
     it("should reject resourceKey with control characters", () => {
       const plugin = createTelemetryPlugin();
-      
+
       expect(() =>
         plugin.traceBackgroundRevalidationComplete(
           "valid-span",
@@ -784,7 +791,7 @@ describe("TelemetryPlugin", () => {
 
     it("should accept resourceKey with valid special characters", () => {
       const plugin = createTelemetryPlugin();
-      
+
       const validKeys = [
         "resource-key",
         "resource_key",
@@ -808,14 +815,10 @@ describe("TelemetryPlugin", () => {
 
     it("should validate both parameters in correct order", () => {
       const plugin = createTelemetryPlugin();
-      
+
       // spanName is validated first
       expect(() =>
-        plugin.traceBackgroundRevalidationComplete(
-          "",
-          "",
-          (span) => {},
-        ),
+        plugin.traceBackgroundRevalidationComplete("", "", (span) => {}),
       ).toThrow("spanName cannot be empty or whitespace only");
     });
   });

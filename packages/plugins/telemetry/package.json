@@ -26,13 +26,11 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
-    "@opentelemetry/resources": "^2.2.0",
-    "@udsl/core": "workspace:*"
-  },
-  "peerDependencies": {
     "@opentelemetry/auto-instrumentations-node": "^0.40.0",
-    "@opentelemetry/sdk-node": "^0.45.0"
+    "@opentelemetry/exporter-trace-otlp-http": "^0.54.2",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/sdk-node": "^0.45.0",
+    "@udsl/core": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

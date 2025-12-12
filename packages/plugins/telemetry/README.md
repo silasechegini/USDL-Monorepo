@@ -232,6 +232,8 @@ await telemetryPlugin.traceOperation("custom_sync", "users", async (span) => {
 ### Creating Child Spans
 
 ```typescript
+import { SpanStatusCode } from '@opentelemetry/api';
+
 const telemetryPlugin = udsl.getPlugin(TelemetryPlugin);
 
 // Create child span for detailed tracing
