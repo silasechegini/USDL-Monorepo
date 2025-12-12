@@ -85,7 +85,7 @@ const DEFAULT_OPTIONS: Required<TelemetryPluginOptions> = {
 export class TelemetryPlugin implements UDSLPlugin {
   private tracer;
   private options: Required<TelemetryPluginOptions>;
-  private activeSpans = new WeakMap<any, Span>();
+  private activeSpans = new WeakMap<object, Span>();
 
   constructor(options: TelemetryPluginOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -404,8 +404,8 @@ export class TelemetryPlugin implements UDSLPlugin {
   /**
    * Traces a background revalidation operation with automatic span lifecycle management.
    *
-   * @param spanName - Name for the span (will be formatted with spanNameFormatter)
-   * @param resourceKey - Resource identifier being revalidated
+   * @param spanName - Name for the span (will be formatted with spanNameFormatter) - Maximum 255 characters
+   * @param resourceKey - Resource identifier being revalidated - Maximum 255 characters
    * @param operationFn - Function to execute within the span context
    * @param options - Optional span creation options
    * @returns The result of the operation function
@@ -459,14 +459,6 @@ export class TelemetryPlugin implements UDSLPlugin {
           });
           const result = operationFn(span);
 
-          // Handle Promises/Async operations
-          if (result instanceof Promise) {
-            return result.finally(() => {
-              span.end();
-            });
-          }
-
-          // For synchronous operations, the span ends automatically after this block
           return result;
         } catch (error) {
           // Record exception and set status if an error occurs
@@ -568,8 +560,14 @@ export class TelemetryPlugin implements UDSLPlugin {
       if (segments.length > 0) {
         return segments.join(".");
       }
-      // Use host for root paths instead of "unknown"
-      return urlObj.host || "unknown";
+  
+      // Use host for root paths; if host is missing, use a hash to avoid collisions
+      if (urlObj.host) {
+        return urlObj.host;
+      } else {
+        const hash = this.hashString(url);
+        return `nohost_${hash}`;
+      }
     } catch {
       // For invalid URLs, use a hash to prevent collisions
       const hash = this.hashString(url);

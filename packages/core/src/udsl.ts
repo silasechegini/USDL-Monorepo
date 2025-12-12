@@ -155,7 +155,7 @@ export class UDSL implements IUDSL {
         console.warn(`Background revalidation failed for ${cacheKey}:`, error);
       } finally {
         // Notify telemetry plugins about revalidation completion
-        this.notifyPlugins("onRevalidationComplete", key, success);
+        await this.notifyPlugins("onRevalidationComplete", key, success);
       }
     })();
 
@@ -256,7 +256,7 @@ export class UDSL implements IUDSL {
 
       if (cached.isRevalidating) {
         // Already revalidating - return stale data
-        this.notifyPlugins("onCacheHit", key, true);
+        await this.notifyPlugins("onCacheHit", key, true);
         return cached.data as T;
       }
     }
@@ -351,12 +351,20 @@ export class UDSL implements IUDSL {
   /**
    * Notify plugins about telemetry events
    */
-  private async notifyPlugins(hookName: keyof UDSLPlugin, ...args: any[]) {
+  private async notifyPlugins<K extends keyof UDSLPlugin>(
+    hookName: K,
+    ...args: UDSLPlugin[K] extends ((...params: infer A) => any) | undefined
+      ? A
+      : never
+  ): Promise<void> {
     for (const plugin of this.plugins) {
-      const hook = plugin[hookName] as Function;
-      if (hook) {
+      const hook = plugin[hookName];
+      if (hook && typeof hook === "function") {
         try {
-          const result = hook.apply(plugin, args);
+          const result = (hook as Function).apply(
+            plugin,
+            args,
+          );
           // Await if the result is a Promise
           if (result instanceof Promise) {
             await result;
