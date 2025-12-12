@@ -1,4 +1,11 @@
-import { UDSLConfig, UDSLPlugin, CacheEntry, IUDSL, CacheResult, MutateOperation } from "./types";
+import {
+  UDSLConfig,
+  UDSLPlugin,
+  CacheEntry,
+  IUDSL,
+  CacheResult,
+  MutateOperation,
+} from "./types";
 
 export class UDSL implements IUDSL {
   private config: UDSLConfig;
@@ -20,9 +27,13 @@ export class UDSL implements IUDSL {
     }
   }
 
-  private async runAfterFetch(url: string, response: Response) {
+  private async runAfterFetch(
+    url: string,
+    response: Response,
+    init: RequestInit,
+  ) {
     for (const p of this.plugins) {
-      if (p.afterFetch) await p.afterFetch(url, response);
+      if (p.afterFetch) await p.afterFetch(url, response, init);
     }
   }
 
@@ -56,7 +67,7 @@ export class UDSL implements IUDSL {
 
     const res = await fetch(url, init);
 
-    await this.runAfterFetch(url, res);
+    await this.runAfterFetch(url, res, init);
 
     if (!res.ok) throw new Error(`Network error: ${res.status}`);
 
@@ -112,14 +123,19 @@ export class UDSL implements IUDSL {
     const resource = this.config.resources[key];
     if (!resource?.get || !resource.cache) return;
 
+    // Mark as revalidating BEFORE starting the async promise
+    // This ensures isRevalidating is set synchronously
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      cached.isRevalidating = true;
+    }
+
     // Create and immediately register the promise to prevent race conditions
     const revalidationPromise = (async () => {
-      // Mark as revalidating
-      const cached = this.cache.get(cacheKey);
-      if (cached) {
-        cached.isRevalidating = true;
-      }
+      // Notify telemetry plugins about revalidation start
+      await this.notifyPlugins("onRevalidationStart", key);
 
+      let success = false;
       try {
         const data = await this.performFetch<T>(key, params);
         const now = Date.now();
@@ -130,6 +146,7 @@ export class UDSL implements IUDSL {
           isRevalidating: false,
           lastRevalidated: now,
         });
+        success = true;
       } catch (error) {
         // Keep stale data on revalidation error, just mark as not revalidating
         const cached = this.cache.get(cacheKey);
@@ -137,12 +154,15 @@ export class UDSL implements IUDSL {
           cached.isRevalidating = false;
         }
         console.warn(`Background revalidation failed for ${cacheKey}:`, error);
+      } finally {
+        // Notify telemetry plugins about revalidation completion
+        await this.notifyPlugins("onRevalidationComplete", key, success);
       }
     })();
 
     // Register the promise immediately after creation.
-    // This prevents duplicate revalidations within a single event loop tick,
-    // but is not truly atomic across all possible concurrent accesses.
+    // This prevents duplicate revalidations by ensuring the promise is tracked
+    // before any async operations can complete and allow race conditions.
     this.revalidationPromises.set(cacheKey, revalidationPromise);
 
     // Clean up the promise when done
@@ -183,7 +203,7 @@ export class UDSL implements IUDSL {
 
     const res = await fetch(url, init);
 
-    await this.runAfterFetch(url, res);
+    await this.runAfterFetch(url, res, init);
 
     if (!res.ok) throw new Error(`Network error: ${res.status}`);
 
@@ -223,21 +243,27 @@ export class UDSL implements IUDSL {
 
       if (!isExpired) {
         // Fresh data - return immediately
+        await this.notifyPlugins("onCacheHit", key, false);
         return cached.data as T;
       }
 
       if (isExpired && !cached.isRevalidating) {
         // Stale data - serve immediately and revalidate in background
         cached.isStale = true;
+        await this.notifyPlugins("onCacheHit", key, true);
         this.revalidateInBackground<T>(key, params);
         return cached.data as T;
       }
 
       if (cached.isRevalidating) {
         // Already revalidating - return stale data
+        await this.notifyPlugins("onCacheHit", key, true);
         return cached.data as T;
       }
     }
+
+    // No cached data - cache miss
+    await this.notifyPlugins("onCacheMiss", key);
 
     // No cached data - fetch fresh data synchronously
     const data = await this.performFetch<T>(key, params);
@@ -324,6 +350,67 @@ export class UDSL implements IUDSL {
   }
 
   /**
+   * Notify plugins about telemetry events
+   */
+  private async notifyPlugins(
+    hookName: keyof UDSLPlugin,
+    ...args: any[]
+  ): Promise<void> {
+    for (const plugin of this.plugins) {
+      const hook = plugin[hookName];
+      if (hook && typeof hook === "function") {
+        try {
+          const result = (hook as Function).apply(plugin, args);
+          // Await if the result is a Promise
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          // Plugin failures should not be fatal. A warning should suffice.
+          console.warn(`Plugin hook ${hookName} failed:`, error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Wrap operations with telemetry timing
+   */
+  private async withTelemetry<T>(
+    operation: string,
+    resourceKey: string,
+    fn: () => Promise<T>,
+    params?: any,
+  ): Promise<T> {
+    const startTime = Date.now();
+    await this.notifyPlugins(
+      "onOperationStart",
+      operation,
+      resourceKey,
+      params,
+    );
+
+    let success = false;
+    let finalResult: T | undefined = undefined;
+    try {
+      const result = await fn();
+      finalResult = result;
+      success = true;
+      return result;
+    } finally {
+      const duration = Date.now() - startTime;
+      await this.notifyPlugins(
+        "onOperationComplete",
+        operation,
+        resourceKey,
+        success,
+        duration,
+        finalResult,
+      );
+    }
+  }
+
+  /**
    * Forces revalidation of a cached resource and returns the fresh data.
    *
    * This method will:
@@ -378,22 +465,29 @@ export class UDSL implements IUDSL {
     data: any,
     params?: Record<string, any>,
   ): Promise<T> {
-    const resource = this.config.resources[key];
-    if (!resource) throw new Error(`Resource not found: ${key}`);
-    if (!resource.post)
-      throw new Error(`POST endpoint not defined for: ${key}`);
+    return this.withTelemetry(
+      "create",
+      key,
+      async () => {
+        const resource = this.config.resources[key];
+        if (!resource) throw new Error(`Resource not found: ${key}`);
+        if (!resource.post)
+          throw new Error(`POST endpoint not defined for: ${key}`);
 
-    let url = resource.post;
-    if (params) {
-      url = this.replaceUrlParams(url, params);
-    }
+        let url = resource.post;
+        if (params) {
+          url = this.replaceUrlParams(url, params);
+        }
 
-    const result = await this.executeRequest<T>("POST", url, data, key);
+        const result = await this.executeRequest<T>("POST", url, data, key);
 
-    // Invalidate cache using granular strategy
-    this.invalidateResourceCache(key, "create");
+        // Invalidate cache using granular strategy
+        this.invalidateResourceCache(key, "create");
 
-    return result;
+        return result;
+      },
+      params,
+    );
   }
 
   async updateResource<T = any>(
@@ -402,20 +496,28 @@ export class UDSL implements IUDSL {
     data: any,
     params?: Record<string, any>,
   ): Promise<T> {
-    const resource = this.config.resources[key];
-    if (!resource) throw new Error(`Resource not found: ${key}`);
-    if (!resource.put) throw new Error(`PUT endpoint not defined for: ${key}`);
+    return this.withTelemetry(
+      "update",
+      key,
+      async () => {
+        const resource = this.config.resources[key];
+        if (!resource) throw new Error(`Resource not found: ${key}`);
+        if (!resource.put)
+          throw new Error(`PUT endpoint not defined for: ${key}`);
 
-    let url = resource.put;
-    const allParams = { id, ...params };
-    url = this.replaceUrlParams(url, allParams);
+        let url = resource.put;
+        const allParams = { id, ...params };
+        url = this.replaceUrlParams(url, allParams);
 
-    const result = await this.executeRequest<T>("PUT", url, data, key);
+        const result = await this.executeRequest<T>("PUT", url, data, key);
 
-    // Invalidate cache using granular strategy
-    this.invalidateResourceCache(key, "update", id);
+        // Invalidate cache using granular strategy
+        this.invalidateResourceCache(key, "update", id);
 
-    return result;
+        return result;
+      },
+      { id, ...params },
+    );
   }
 
   async patchResource<T = any>(
@@ -424,21 +526,28 @@ export class UDSL implements IUDSL {
     data: any,
     params?: Record<string, any>,
   ): Promise<T> {
-    const resource = this.config.resources[key];
-    if (!resource) throw new Error(`Resource not found: ${key}`);
-    if (!resource.patch)
-      throw new Error(`PATCH endpoint not defined for: ${key}`);
+    return this.withTelemetry(
+      "patch",
+      key,
+      async () => {
+        const resource = this.config.resources[key];
+        if (!resource) throw new Error(`Resource not found: ${key}`);
+        if (!resource.patch)
+          throw new Error(`PATCH endpoint not defined for: ${key}`);
 
-    let url = resource.patch;
-    const allParams = { id, ...params };
-    url = this.replaceUrlParams(url, allParams);
+        let url = resource.patch;
+        const allParams = { id, ...params };
+        url = this.replaceUrlParams(url, allParams);
 
-    const result = await this.executeRequest<T>("PATCH", url, data, key);
+        const result = await this.executeRequest<T>("PATCH", url, data, key);
 
-    // Invalidate cache using granular strategy
-    this.invalidateResourceCache(key, "patch", id);
+        // Invalidate cache using granular strategy
+        this.invalidateResourceCache(key, "patch", id);
 
-    return result;
+        return result;
+      },
+      { id, ...params },
+    );
   }
 
   async removeResource<T = any>(
@@ -446,21 +555,33 @@ export class UDSL implements IUDSL {
     id: string | number,
     params?: Record<string, any>,
   ): Promise<T> {
-    const resource = this.config.resources[key];
-    if (!resource) throw new Error(`Resource not found: ${key}`);
-    if (!resource.delete)
-      throw new Error(`DELETE endpoint not defined for: ${key}`);
+    return this.withTelemetry(
+      "delete",
+      key,
+      async () => {
+        const resource = this.config.resources[key];
+        if (!resource) throw new Error(`Resource not found: ${key}`);
+        if (!resource.delete)
+          throw new Error(`DELETE endpoint not defined for: ${key}`);
 
-    let url = resource.delete;
-    const allParams = { id, ...params };
-    url = this.replaceUrlParams(url, allParams);
+        let url = resource.delete;
+        const allParams = { id, ...params };
+        url = this.replaceUrlParams(url, allParams);
 
-    const result = await this.executeRequest<T>("DELETE", url, undefined, key);
+        const result = await this.executeRequest<T>(
+          "DELETE",
+          url,
+          undefined,
+          key,
+        );
 
-    // Invalidate cache using granular strategy
-    this.invalidateResourceCache(key, "delete", id);
+        // Invalidate cache using granular strategy
+        this.invalidateResourceCache(key, "delete", id);
 
-    return result;
+        return result;
+      },
+      { id, ...params },
+    );
   }
 }
 
