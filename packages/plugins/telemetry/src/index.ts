@@ -8,6 +8,13 @@ import {
   type Span,
   SpanOptions,
 } from "@opentelemetry/api";
+import {
+  resourceFromAttributes,
+  defaultResource,
+} from "@opentelemetry/resources";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 
 export interface TelemetryPluginOptions {
   /** Service name for tracing */
@@ -428,6 +435,10 @@ export class TelemetryPlugin implements UDSLPlugin {
     operationFn: (span: Span) => any,
     options?: SpanOptions,
   ): any {
+    // Validate parameters
+    this.validateSpanParameter(spanName, 'spanName');
+    this.validateSpanParameter(resourceKey, 'resourceKey');
+
     const optionsConstruct: SpanOptions = options || {
       kind: SpanKind.INTERNAL,
       attributes: {
@@ -465,8 +476,9 @@ export class TelemetryPlugin implements UDSLPlugin {
             message: error instanceof Error ? error.message : "Unknown error",
           });
           throw error; // Re-throw the error for the caller to handle
+        } finally {
+          span.end();
         }
-        // Note: For synchronous calls, the span.end() call is handled by the API's internal mechanics of startActiveSpan
       },
     );
   }
@@ -506,6 +518,32 @@ export class TelemetryPlugin implements UDSLPlugin {
         ...attributes,
       },
     });
+  }
+
+  /**
+   * Validates a span parameter string for telemetry operations.
+   *
+   * @param value - The string value to validate
+   * @param paramName - Name of the parameter (for error messages)
+   * @throws Error if validation fails
+   * @private
+   *
+   * @remarks
+   * Validation checks:
+   * - Empty or whitespace-only strings are rejected
+   * - Maximum length of 255 characters
+   * - No control characters (\x00-\x1F, \x7F) that could corrupt telemetry
+   */
+  private validateSpanParameter(value: string, paramName: string): void {
+    if (value.trim().length === 0) {
+      throw new Error(`${paramName} cannot be empty or whitespace only`);
+    }
+    if (value.length > 255) {
+      throw new Error(`${paramName} exceeds maximum length of 255 characters`);
+    }
+    if (/[\x00-\x1F\x7F]/.test(value)) {
+      throw new Error(`${paramName} contains invalid control characters`);
+    }
   }
 
   /**
@@ -585,87 +623,23 @@ export async function initializeOpenTelemetry(options: {
    * Here is a simple implementation using NodeSDK, which is common for Node.js apps.
    */
 
-  let NodeSDK: any;
-  let getNodeAutoInstrumentations: any;
-  let OTLPTraceExporter: any;
-  let Resource: any;
-
-  try {
-    const sdkModule = await import("@opentelemetry/sdk-node");
-    NodeSDK = sdkModule.NodeSDK;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to import @opentelemetry/sdk-node. ${error.message}`,
-      );
-    }
-    throw error;
-  }
-
-  try {
-    const autoInstrumentations = await import(
-      "@opentelemetry/auto-instrumentations-node"
-    );
-    getNodeAutoInstrumentations =
-      autoInstrumentations.getNodeAutoInstrumentations;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to import @opentelemetry/auto-instrumentations-node. ${error.message}`,
-      );
-    }
-    throw error;
-  }
-
-  // Import OTLP exporter if endpoint is provided
-  if (options.endpoint) {
-    try {
-      const exporterModule = await import(
-        "@opentelemetry/exporter-trace-otlp-http"
-      );
-      OTLPTraceExporter = exporterModule.OTLPTraceExporter;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(
-          `Failed to import @opentelemetry/exporter-trace-otlp-http. ${error.message}`,
-        );
-      }
-      throw error;
-    }
-  }
-
-  // Import Resource for environment configuration
-  if (options.environment) {
-    try {
-      const resourceModule = await import("@opentelemetry/resources");
-      Resource = resourceModule;
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(
-          `Failed to import @opentelemetry/resources. ${error.message}`,
-        );
-      }
-      throw error;
-    }
-  }
-
   const sdkConfig: any = {
-    serviceName: options.serviceName,
-    serviceVersion: options.serviceVersion || "1.0.0",
+    resource: defaultResource().merge(
+      resourceFromAttributes({
+        "service.name": options.serviceName,
+        "service.version": options.serviceVersion || "1.0.0",
+        ...(options.environment && {
+          'deployment.environment.name': options.environment,
+        }),
+      }),
+    ),
     instrumentations: [getNodeAutoInstrumentations()],
   };
 
   // Configure exporter if endpoint provided
-  if (options.endpoint && OTLPTraceExporter) {
+  if (options.endpoint) {
     sdkConfig.traceExporter = new OTLPTraceExporter({
       url: options.endpoint,
-    });
-  }
-
-  // Add environment to resource attributes
-  if (options.environment && Resource) {
-    sdkConfig.resource = new Resource({
-      "deployment.environment": options.environment,
     });
   }
 

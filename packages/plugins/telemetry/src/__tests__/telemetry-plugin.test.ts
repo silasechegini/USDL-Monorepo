@@ -577,4 +577,246 @@ describe("TelemetryPlugin", () => {
       );
     });
   });
+
+  describe("Parameter Validation (validateSpanParameter)", () => {
+    it("should reject empty string for spanName", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName cannot be empty or whitespace only");
+    });
+
+    it("should reject whitespace-only string for spanName", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "   \t\n  ",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName cannot be empty or whitespace only");
+    });
+
+    it("should reject spanName exceeding 255 characters", () => {
+      const plugin = createTelemetryPlugin();
+      const longName = "a".repeat(256);
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          longName,
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName exceeds maximum length of 255 characters");
+    });
+
+    it("should accept spanName with exactly 255 characters", () => {
+      const plugin = createTelemetryPlugin();
+      const maxName = "a".repeat(255);
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          maxName,
+          "valid-resource",
+          (span) => {},
+        ),
+      ).not.toThrow();
+    });
+
+    it("should reject spanName with null byte (\\x00)", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "span\x00name",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName contains invalid control characters");
+    });
+
+    it("should reject spanName with control characters (\\x01-\\x1F)", () => {
+      const plugin = createTelemetryPlugin();
+      
+      // Test a few control characters
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "span\x01name",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName contains invalid control characters");
+
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "span\x1Fname",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName contains invalid control characters");
+    });
+
+    it("should reject spanName with DEL character (\\x7F)", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "span\x7Fname",
+          "valid-resource",
+          (span) => {},
+        ),
+      ).toThrow("spanName contains invalid control characters");
+    });
+
+    it("should accept spanName with valid special characters", () => {
+      const plugin = createTelemetryPlugin();
+      
+      // These should all be acceptable
+      const validNames = [
+        "span-name",
+        "span_name",
+        "span.name",
+        "span:name",
+        "span/name",
+        "span name",
+        "span@name",
+        "span#name",
+        "span$name",
+        "span(name)",
+        "span[name]",
+        "span{name}",
+      ];
+
+      validNames.forEach((name) => {
+        expect(() =>
+          plugin.traceBackgroundRevalidationComplete(
+            name,
+            "valid-resource",
+            (span) => {},
+          ),
+        ).not.toThrow();
+      });
+    });
+
+    it("should reject empty string for resourceKey", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          "",
+          (span) => {},
+        ),
+      ).toThrow("resourceKey cannot be empty or whitespace only");
+    });
+
+    it("should reject whitespace-only string for resourceKey", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          "   \t\n  ",
+          (span) => {},
+        ),
+      ).toThrow("resourceKey cannot be empty or whitespace only");
+    });
+
+    it("should reject resourceKey exceeding 255 characters", () => {
+      const plugin = createTelemetryPlugin();
+      const longKey = "r".repeat(256);
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          longKey,
+          (span) => {},
+        ),
+      ).toThrow("resourceKey exceeds maximum length of 255 characters");
+    });
+
+    it("should accept resourceKey with exactly 255 characters", () => {
+      const plugin = createTelemetryPlugin();
+      const maxKey = "r".repeat(255);
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          maxKey,
+          (span) => {},
+        ),
+      ).not.toThrow();
+    });
+
+    it("should reject resourceKey with control characters", () => {
+      const plugin = createTelemetryPlugin();
+      
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          "resource\x00key",
+          (span) => {},
+        ),
+      ).toThrow("resourceKey contains invalid control characters");
+
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          "resource\x1Fkey",
+          (span) => {},
+        ),
+      ).toThrow("resourceKey contains invalid control characters");
+
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "valid-span",
+          "resource\x7Fkey",
+          (span) => {},
+        ),
+      ).toThrow("resourceKey contains invalid control characters");
+    });
+
+    it("should accept resourceKey with valid special characters", () => {
+      const plugin = createTelemetryPlugin();
+      
+      const validKeys = [
+        "resource-key",
+        "resource_key",
+        "resource.key",
+        "resource:key",
+        "resource/key",
+        "user.123",
+        "api.v2.users",
+      ];
+
+      validKeys.forEach((key) => {
+        expect(() =>
+          plugin.traceBackgroundRevalidationComplete(
+            "valid-span",
+            key,
+            (span) => {},
+          ),
+        ).not.toThrow();
+      });
+    });
+
+    it("should validate both parameters in correct order", () => {
+      const plugin = createTelemetryPlugin();
+      
+      // spanName is validated first
+      expect(() =>
+        plugin.traceBackgroundRevalidationComplete(
+          "",
+          "",
+          (span) => {},
+        ),
+      ).toThrow("spanName cannot be empty or whitespace only");
+    });
+  });
 });

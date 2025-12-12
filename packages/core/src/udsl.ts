@@ -351,12 +351,16 @@ export class UDSL implements IUDSL {
   /**
    * Notify plugins about telemetry events
    */
-  private notifyPlugins(hookName: keyof UDSLPlugin, ...args: any[]) {
+  private async notifyPlugins(hookName: keyof UDSLPlugin, ...args: any[]) {
     for (const plugin of this.plugins) {
       const hook = plugin[hookName] as Function;
       if (hook) {
         try {
-          hook.apply(plugin, args);
+          const result = hook.apply(plugin, args);
+          // Await if the result is a Promise
+          if (result instanceof Promise) {
+            await result;
+          }
         } catch (error) {
           // Plugin failures should not be fatal. A warning should suffice.
           console.warn(`Plugin hook ${hookName} failed:`, error);
