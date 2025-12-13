@@ -48,7 +48,6 @@ All UDSL plugins follow a consistent architecture:
 ```typescript
 interface UDSLPlugin {
   name: string;
-  version: string;
 
   // HTTP lifecycle hooks
   beforeFetch?: (url: string, init: RequestInit) => void | Promise<void>;
@@ -98,7 +97,6 @@ export interface MyPluginOptions {
 
 export class MyPlugin implements UDSLPlugin {
   name = "my-plugin";
-  version = "1.0.0";
 
   constructor(private options: MyPluginOptions) {}
 
@@ -108,14 +106,14 @@ export class MyPlugin implements UDSLPlugin {
       ...(init.headers || {}),
       "X-API-Key": this.options.apiKey,
     };
-    // Optionally, you can return nothing or the modified init object
+    // No return value is needed; modify 'init' in place as required
   };
   afterFetch = async (url: string, response: Response, init: RequestInit) => {
     // Transform response
     if (response.headers.get("content-type")?.includes("application/json")) {
       // Add custom processing
     }
-    return response;
+    // No return value is needed; modify 'init' in place as required
   };
 }
 

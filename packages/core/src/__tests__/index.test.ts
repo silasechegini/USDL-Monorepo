@@ -881,7 +881,7 @@ describe("UDSL Core", () => {
       expect(onOperationComplete).toHaveBeenCalledTimes(1);
       const duration = onOperationComplete.mock.calls[0][3];
       // Use a slightly lower threshold to account for timing variations
-      expect(duration).toBeGreaterThanOrEqual(45);
+      expect(duration).toBeGreaterThanOrEqual(50);
     });
   });
 });
