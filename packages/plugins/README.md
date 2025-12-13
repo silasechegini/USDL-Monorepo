@@ -47,7 +47,7 @@ All UDSL plugins follow a consistent architecture:
 
 ```typescript
 interface UDSLPlugin {
-  name: string;
+  name?: string;
 
   // HTTP lifecycle hooks
   beforeFetch?: (url: string, init: RequestInit) => void | Promise<void>;
