@@ -366,6 +366,21 @@ export class UDSL implements IUDSL {
             await result;
           }
         } catch (error) {
+          // Notify error handler if configured
+          if (this.config.onPluginError) {
+            try {
+              this.config.onPluginError({
+                pluginName: plugin.name || "unknown",
+                hookName: hookName as string,
+                error: error as Error,
+                timestamp: Date.now(),
+                args,
+              });
+            } catch (handlerError) {
+              // Error handler itself failed - log but don't throw
+              console.error("Plugin error handler failed:", handlerError);
+            }
+          }
           // Plugin failures should not be fatal. A warning should suffice.
           console.warn(`Plugin hook ${hookName} failed:`, error);
         }

@@ -55,9 +55,11 @@ export type CacheResult = {
 
 export type UDSLConfig = {
   resources: Record<string, ResourceConfig>;
+  onPluginError?: PluginErrorHandler;
 };
 
 export interface UDSLPlugin {
+  name?: string; // Optional plugin identifier for error tracking
   beforeFetch?: (url: string, init: RequestInit) => Promise<void> | void;
   afterFetch?: (
     url: string,
@@ -87,3 +89,13 @@ export interface UDSLPlugin {
 }
 
 export type MutateOperation = "create" | "update" | "patch" | "delete";
+
+export type PluginError = {
+  pluginName: string;
+  hookName: string;
+  error: Error;
+  timestamp: number;
+  args: any[];
+};
+
+export type PluginErrorHandler = (error: PluginError) => void;

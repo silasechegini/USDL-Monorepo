@@ -14,22 +14,13 @@ const mockSpan = {
 const mockTracer = {
   startSpan: vi.fn(() => mockSpan),
   /**
-   * Mock startActiveSpan to accurately simulate OpenTelemetry's actual behavior:
-   *
-   * Real OpenTelemetry behavior:
-   * - For sync operations: Executes callback, returns result, does NOT auto-end span
-   * - For async operations: Executes callback, returns Promise, does NOT auto-end span
-   * - Span lifecycle is entirely managed by user code (must call span.end())
-   *
-   * This realistic mock helps catch span leak bugs where span.end() isn't called.
+   * Mock that simulates OpenTelemetry's startActiveSpan behavior.
+   * The real API does NOT automatically end spans - it's the user's responsibility
+   * to call span.end(). This mock simply executes the callback and returns the result.
    */
   startActiveSpan: vi.fn((name, options, fn) => {
     // Execute the callback with the mock span (simulates setting active span in context)
-    const result = fn(mockSpan);
-
-    // Return the result as-is, whether it's a value or Promise
-    // The real API does NOT call span.end() automatically - user must do it
-    return result;
+    return fn(mockSpan);
   }),
 };
 
@@ -252,7 +243,35 @@ describe("TelemetryPlugin", () => {
       expect(mockSpan.setStatus).toHaveBeenCalledWith(
         expect.objectContaining({ code: SpanStatusCode.ERROR }),
       );
-      expect(mockSpan.end).toHaveBeenCalled();
+      // Span should be ended by the .finally() handler on the promise
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not call span.end() prematurely for async operations", async () => {
+      const plugin = createTelemetryPlugin();
+      let resolveOperation: (value: any) => void;
+      const delayedPromise = new Promise((resolve) => {
+        resolveOperation = resolve;
+      });
+
+      const mockRevalidateFn = vi.fn().mockReturnValue(delayedPromise);
+
+      // Start the operation but don't await it yet
+      const resultPromise = plugin.traceBackgroundRevalidationComplete(
+        "users-revalidation",
+        "users",
+        mockRevalidateFn,
+      );
+
+      // At this point, the operation is pending - span should NOT be ended yet
+      expect(mockSpan.end).not.toHaveBeenCalled();
+
+      // Resolve the operation
+      resolveOperation!({ data: "resolved" });
+      await resultPromise;
+
+      // Now span.end() should have been called exactly once (by the .finally() handler)
+      expect(mockSpan.end).toHaveBeenCalledTimes(1);
     });
   });
 

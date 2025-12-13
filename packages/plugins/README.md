@@ -51,21 +51,15 @@ interface UDSLPlugin {
   version: string;
 
   // HTTP lifecycle hooks
-  beforeFetch?: (
-    url: string, init: RequestInit,
-  ) => void | Promise<void>;
+  beforeFetch?: (url: string, init: RequestInit) => void | Promise<void>;
   afterFetch?: (
     url: string,
     response: Response,
     init: RequestInit,
   ) => void | Promise<void>;
-  onError?: (error: Error, config: RequestConfig) => void | Promise<void>;
 
   // Cache lifecycle hooks
-  onCacheHit?: (
-    resourceKey: string,
-    isStale: boolean,
-  ) => void | Promise<void>;
+  onCacheHit?: (resourceKey: string, isStale: boolean) => void | Promise<void>;
   onCacheMiss?: (key: string) => void | Promise<void>;
   onRevalidationStart?: (key: string) => void | Promise<void>;
   onRevalidationComplete?: (
@@ -108,16 +102,15 @@ export class MyPlugin implements UDSLPlugin {
 
   constructor(private options: MyPluginOptions) {}
 
-  beforeFetch = async (config: RequestConfig) => {
+  beforeFetch = async (url: string, init: RequestInit) => {
     // Add custom headers
-    config.headers = {
-      ...config.headers,
+    init.headers = {
+      ...(init.headers || {}),
       "X-API-Key": this.options.apiKey,
     };
-    return config;
+    // Optionally, you can return nothing or the modified init object
   };
-
-  afterFetch = async (response: Response) => {
+  afterFetch = async (url: string, response: Response, init: RequestInit) => {
     // Transform response
     if (response.headers.get("content-type")?.includes("application/json")) {
       // Add custom processing
