@@ -643,30 +643,35 @@ const udsl = createUDSL({
 
 ```typescript
 import { createUDSL, PluginError } from "@udsl/core";
+// Example using Sentry for error tracking
+import * as Sentry from "@sentry/node";
 
 function handlePluginError(error: PluginError) {
   // 1. Log to console for debugging
   console.error(`[${error.pluginName}] ${error.hookName} failed:`, error.error);
 
-  // 2. Increment metric counter
-  metrics.increment("udsl.plugin.error", {
-    plugin: error.pluginName,
-    hook: error.hookName,
-  });
+  // 2. Increment metric counter (example using your metrics library)
+  // metrics.increment("udsl.plugin.error", {
+  //   plugin: error.pluginName,
+  //   hook: error.hookName,
+  // });
 
-  // 3. Send to error tracking
-  errorTracker.captureException(error.error, {
-    context: {
+  // 3. Send to Sentry error tracking
+  Sentry.captureException(error.error, {
+    tags: {
       plugin: error.pluginName,
       hook: error.hookName,
+    },
+    extra: {
       args: error.args,
+      timestamp: error.timestamp,
     },
   });
 
-  // 4. Alert if critical plugin fails
-  if (error.pluginName === "TelemetryPlugin") {
-    alerting.trigger("critical", "Telemetry plugin failure detected");
-  }
+  // 4. Alert if critical plugin fails (example using your alerting system)
+  // if (error.pluginName === "TelemetryPlugin") {
+  //   alerting.trigger("critical", "Telemetry plugin failure detected");
+  // }
 }
 
 const udsl = createUDSL({

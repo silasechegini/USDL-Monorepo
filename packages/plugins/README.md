@@ -113,7 +113,9 @@ export class MyPlugin implements UDSLPlugin {
     if (response.headers.get("content-type")?.includes("application/json")) {
       // Add custom processing
     }
-    // No return value is needed; modify 'init' in place as required
+    // No return value is needed; use this hook to observe or transform the response as needed.
+    // Note: Modifying 'init' here has no effect; the request has already completed.
+    // If you need to transform the response, you can read or clone it, as Response objects are immutable.
   };
 }
 
