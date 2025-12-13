@@ -719,6 +719,137 @@ describe("UDSL Core", () => {
       consoleWarnSpy.mockRestore();
     });
 
+    test("should call onPluginError handler when plugin hook fails", async () => {
+      const onPluginError = vi.fn();
+      const onCacheMiss = vi.fn(() => {
+        throw new Error("Plugin hook failure");
+      });
+      const plugin = {
+        name: "TestPlugin",
+        onCacheMiss,
+      };
+
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ id: 1 }],
+      });
+
+      const udsl = createUDSL({
+        resources: {
+          users: { get: "https://api.example.com/users", cache: 60 },
+        },
+        onPluginError,
+      });
+
+      udsl.registerPlugin(plugin);
+
+      await udsl.fetchResource("users");
+
+      // Error handler should be called with plugin error details
+      expect(onPluginError).toHaveBeenCalledTimes(1);
+      expect(onPluginError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginName: "TestPlugin",
+          hookName: "onCacheMiss",
+          error: expect.any(Error),
+          timestamp: expect.any(Number),
+          args: expect.arrayContaining(["users"]),
+        }),
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    test("should use 'unknown' as plugin name when name property is missing", async () => {
+      const onPluginError = vi.fn();
+      const onCacheMiss = vi.fn(() => {
+        throw new Error("Plugin hook failure");
+      });
+      const plugin = { onCacheMiss }; // No name property
+
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ id: 1 }],
+      });
+
+      const udsl = createUDSL({
+        resources: {
+          users: { get: "https://api.example.com/users", cache: 60 },
+        },
+        onPluginError,
+      });
+
+      udsl.registerPlugin(plugin);
+
+      await udsl.fetchResource("users");
+
+      expect(onPluginError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginName: "unknown",
+          hookName: "onCacheMiss",
+        }),
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    test("should handle error handler failure gracefully", async () => {
+      const onPluginError = vi.fn(() => {
+        throw new Error("Error handler failure");
+      });
+      const onCacheMiss = vi.fn(() => {
+        throw new Error("Plugin hook failure");
+      });
+      const plugin = {
+        name: "TestPlugin",
+        onCacheMiss,
+      };
+
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ id: 1 }],
+      });
+
+      const udsl = createUDSL({
+        resources: {
+          users: { get: "https://api.example.com/users", cache: 60 },
+        },
+        onPluginError,
+      });
+
+      udsl.registerPlugin(plugin);
+
+      // Should not throw despite both plugin and error handler failing
+      await expect(udsl.fetchResource("users")).resolves.toBeDefined();
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        "Plugin hook onCacheMiss failed:",
+        expect.any(Error),
+      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Plugin error handler failed:",
+        expect.any(Error),
+      );
+
+      consoleWarnSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
     test("should measure operation duration correctly", async () => {
       const onOperationComplete = vi.fn();
       const plugin = { onOperationComplete };
@@ -749,6 +880,7 @@ describe("UDSL Core", () => {
 
       expect(onOperationComplete).toHaveBeenCalledTimes(1);
       const duration = onOperationComplete.mock.calls[0][3];
+      // Use a slightly lower threshold to account for timing variations
       expect(duration).toBeGreaterThanOrEqual(50);
     });
   });

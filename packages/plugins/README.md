@@ -47,25 +47,18 @@ All UDSL plugins follow a consistent architecture:
 
 ```typescript
 interface UDSLPlugin {
-  name: string;
-  version: string;
+  name?: string;
 
   // HTTP lifecycle hooks
-  beforeFetch?: (
-    url: string, init: RequestInit,
-  ) => void | Promise<void>;
+  beforeFetch?: (url: string, init: RequestInit) => void | Promise<void>;
   afterFetch?: (
     url: string,
     response: Response,
     init: RequestInit,
   ) => void | Promise<void>;
-  onError?: (error: Error, config: RequestConfig) => void | Promise<void>;
 
   // Cache lifecycle hooks
-  onCacheHit?: (
-    resourceKey: string,
-    isStale: boolean,
-  ) => void | Promise<void>;
+  onCacheHit?: (resourceKey: string, isStale: boolean) => void | Promise<void>;
   onCacheMiss?: (key: string) => void | Promise<void>;
   onRevalidationStart?: (key: string) => void | Promise<void>;
   onRevalidationComplete?: (
@@ -104,25 +97,25 @@ export interface MyPluginOptions {
 
 export class MyPlugin implements UDSLPlugin {
   name = "my-plugin";
-  version = "1.0.0";
 
   constructor(private options: MyPluginOptions) {}
 
-  beforeFetch = async (config: RequestConfig) => {
+  beforeFetch = async (url: string, init: RequestInit) => {
     // Add custom headers
-    config.headers = {
-      ...config.headers,
+    init.headers = {
+      ...(init.headers || {}),
       "X-API-Key": this.options.apiKey,
     };
-    return config;
+    // No return value is needed; modify 'init' in place as required
   };
-
-  afterFetch = async (response: Response) => {
+  afterFetch = async (url: string, response: Response, init: RequestInit) => {
     // Transform response
     if (response.headers.get("content-type")?.includes("application/json")) {
       // Add custom processing
     }
-    return response;
+    // No return value is needed; use this hook to observe or transform the response as needed.
+    // Note: Modifying 'init' here has no effect; the request has already completed.
+    // If you need to transform the response, you can read or clone it, as Response objects are immutable.
   };
 }
 

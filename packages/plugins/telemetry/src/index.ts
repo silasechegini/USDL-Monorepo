@@ -27,7 +27,16 @@ export interface TelemetryPluginOptions {
   traceCacheOperations?: boolean;
   /** Whether to trace plugin executions */
   tracePluginExecution?: boolean;
-  /** Custom span name formatter */
+  /**
+   * Custom span name formatter
+   *
+   * @remarks
+   * Custom formatters should ensure the output doesn't exceed 255 characters
+   * and doesn't contain control characters (\x00-\x1F, \x7F) to maintain
+   * compatibility with most OpenTelemetry backends.
+   *
+   * The default formatter produces names like "HTTP api.users GET" or "REVALIDATION users".
+   */
   spanNameFormatter?: (
     operation: string,
     resourceKey: string,
@@ -83,6 +92,7 @@ const DEFAULT_OPTIONS: Required<TelemetryPluginOptions> = {
  * @implements {UDSLPlugin}
  */
 export class TelemetryPlugin implements UDSLPlugin {
+  name = "TelemetryPlugin";
   private tracer;
   private options: Required<TelemetryPluginOptions>;
   private activeSpans = new WeakMap<object, Span>();
@@ -404,8 +414,8 @@ export class TelemetryPlugin implements UDSLPlugin {
   /**
    * Traces a background revalidation operation with automatic span lifecycle management.
    *
-   * @param spanName - Name for the span (will be formatted with spanNameFormatter) - Maximum 255 characters
-   * @param resourceKey - Resource identifier being revalidated - Maximum 255 characters
+   * @param spanName - Name for the span (will be formatted with spanNameFormatter)
+   * @param resourceKey - Resource identifier being revalidated
    * @param operationFn - Function to execute within the span context
    * @param options - Optional span creation options
    * @returns The result of the operation function
@@ -416,6 +426,14 @@ export class TelemetryPlugin implements UDSLPlugin {
    * completes or fails.
    *
    * Handles both synchronous and asynchronous operations correctly.
+   *
+   * **Input Validation**: Both `spanName` and `resourceKey` are validated to ensure they:
+   * - Are not empty or whitespace-only
+   * - Do not exceed 255 characters
+   * - Do not contain control characters (\x00-\x1F, \x7F)
+   *
+   * These validated inputs are then passed to `spanNameFormatter`. Custom formatters
+   * should ensure their output also adheres to these constraints.
    *
    * @example
    * ```typescript
@@ -452,6 +470,7 @@ export class TelemetryPlugin implements UDSLPlugin {
       this.options.spanNameFormatter("REVALIDATION", spanName),
       optionsConstruct,
       (span) => {
+        let isAsync = false;
         try {
           // The current span is now active in the context for any child operations
           span.addEvent("udsl.revalidation.start", {
@@ -461,19 +480,26 @@ export class TelemetryPlugin implements UDSLPlugin {
 
           // Handle Promises/Async operations
           if (result instanceof Promise) {
-            return result.catch((error) => {
-              // Record exception for async errors
-              span.recordException(error as Error);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message:
-                  error instanceof Error ? error.message : "Unknown error",
+            isAsync = true;
+            // For promises, chain .finally() to ensure span.end() is called after settlement
+            return result
+              .catch((error) => {
+                // Record exception for async errors
+                span.recordException(error as Error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message:
+                    error instanceof Error ? error.message : "Unknown error",
+                });
+                throw error;
+              })
+              .finally(() => {
+                // End span after promise settles (success or failure)
+                span.end();
               });
-              throw error;
-            });
           }
 
-          // For synchronous operations, the span ends automatically after this block
+          // For synchronous operations, the span will be ended in the finally block below
           return result;
         } catch (error) {
           // Record exception and set status if an error occurs
@@ -484,7 +510,11 @@ export class TelemetryPlugin implements UDSLPlugin {
           });
           throw error; // Re-throw the error for the caller to handle
         } finally {
-          span.end();
+          // Only end span for synchronous operations
+          // For async operations, don't end here - the promise's .finally() will handle it
+          if (!isAsync) {
+            span.end();
+          }
         }
       },
     );
@@ -536,6 +566,11 @@ export class TelemetryPlugin implements UDSLPlugin {
    * @private
    *
    * @remarks
+   * Validates raw input parameters before they are passed to the span name formatter.
+   * This ensures the inputs to the formatter are clean, but does not validate
+   * the formatter's output. Custom formatters are responsible for ensuring their
+   * output meets OpenTelemetry backend requirements.
+   *
    * Validation checks:
    * - Empty or whitespace-only strings are rejected
    * - Maximum length of 255 characters

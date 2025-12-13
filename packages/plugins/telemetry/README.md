@@ -232,7 +232,7 @@ await telemetryPlugin.traceOperation("custom_sync", "users", async (span) => {
 ### Creating Child Spans
 
 ```typescript
-import { SpanStatusCode } from '@opentelemetry/api';
+import { SpanStatusCode } from "@opentelemetry/api";
 
 const telemetryPlugin = udsl.getPlugin(TelemetryPlugin);
 
@@ -272,7 +272,7 @@ try {
 ```tsx
 import { useEffect } from "react";
 import { useData } from "@udsl/react-adapter";
-import { trace } from "@opentelemetry/api";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 
 function UserProfile({ userId }: { userId: string }) {
   const { data: user, loading, error } = useData("user", { id: userId });
@@ -310,7 +310,7 @@ function UserProfile({ userId }: { userId: string }) {
 ### Tracing User Interactions
 
 ```tsx
-import { trace } from "@opentelemetry/api";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 
 function CreateUserForm() {
   const createUser = useCreate("users");
@@ -407,11 +407,13 @@ const sdk = new NodeSDK({
 
 ### Jaeger
 
-```typescript
-import { JaegerExporter } from "@opentelemetry/exporter-jaeger";
+> **Note:** The `@opentelemetry/exporter-jaeger` package is deprecated. Use the OTLP exporter to send traces to Jaeger via its OTLP endpoint.
 
-const jaegerExporter = new JaegerExporter({
-  endpoint: "http://localhost:14268/api/traces",
+```typescript
+import { OTLPTraceExporter } from "@opentelemetry/exporter-otlp-http";
+const jaegerExporter = new OTLPTraceExporter({
+  // Jaeger's OTLP HTTP endpoint (default: http://localhost:4318/v1/traces)
+  url: "http://localhost:4318/v1/traces",
 });
 ```
 
@@ -458,12 +460,26 @@ const newRelicExporter = new OTLPTraceExporter({
 ### Sampling Strategies
 
 ```typescript
+import {
+  TraceIdRatioBasedSampler,
+  type Sampler,
+  type SamplingResult,
+  SamplingDecision,
+} from "@opentelemetry/sdk-trace-base";
+import type { Context, Attributes, SpanKind } from "@opentelemetry/api";
+
 // Head-based sampling (decide at trace start)
 const headSampler = new TraceIdRatioBasedSampler(0.05); // 5% of traces
 
 // Custom sampling based on operation
 class UDSLSampler implements Sampler {
-  shouldSample(context, traceId, spanName, spanKind, attributes) {
+  shouldSample(
+    context: Context,
+    traceId: string,
+    spanName: string,
+    spanKind: SpanKind,
+    attributes: Attributes,
+  ): SamplingResult {
     // Always sample errors
     if (attributes["error"]) {
       return { decision: SamplingDecision.RECORD_AND_SAMPLE };
@@ -481,6 +497,10 @@ class UDSLSampler implements Sampler {
 
     // Default sampling
     return { decision: SamplingDecision.RECORD_AND_SAMPLE };
+  }
+
+  toString(): string {
+    return "UDSLSampler";
   }
 }
 ```
@@ -540,6 +560,164 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 4. **Error Handling**: Always record exceptions in spans
 5. **Resource Limits**: Configure appropriate queue and batch sizes
 6. **Context Propagation**: Ensure trace context flows through async operations
+
+## Monitoring Plugin Errors
+
+UDSL provides a mechanism to track and report plugin failures to your observability platform. This is especially important for the telemetry plugin itself - you want to know if telemetry is failing.
+
+### Setting Up Error Monitoring
+
+```typescript
+import { createUDSL, PluginError } from "@udsl/core";
+import { createTelemetryPlugin } from "@udsl/plugin-telemetry";
+
+const udsl = createUDSL({
+  resources: {
+    users: {
+      get: "https://api.example.com/users",
+      cache: 300,
+    },
+  },
+  // Configure plugin error handler
+  onPluginError: (error: PluginError) => {
+    // Log to your monitoring system
+    console.error("UDSL Plugin Error:", {
+      plugin: error.pluginName,
+      hook: error.hookName,
+      timestamp: new Date(error.timestamp).toISOString(),
+      error: error.error.message,
+      stack: error.error.stack,
+    });
+
+    // Send to error tracking service (e.g., Sentry, DataDog)
+    // Sentry.captureException(error.error, {
+    //   tags: {
+    //     plugin: error.pluginName,
+    //     hook: error.hookName,
+    //   },
+    //   extra: {
+    //     args: error.args,
+    //     timestamp: error.timestamp,
+    //   },
+    // });
+  },
+});
+
+const telemetryPlugin = createTelemetryPlugin({
+  serviceName: "my-app",
+});
+
+udsl.registerPlugin(telemetryPlugin);
+```
+
+### Integration with OpenTelemetry
+
+You can also send plugin errors as OpenTelemetry events or spans:
+
+```typescript
+import { trace } from "@opentelemetry/api";
+import type { PluginError } from "@udsl/core";
+
+const udsl = createUDSL({
+  resources: {
+    /* ... */
+  },
+  onPluginError: (error: PluginError) => {
+    const tracer = trace.getTracer("udsl-error-tracker");
+    const span = tracer.startSpan("plugin.error", {
+      attributes: {
+        "plugin.name": error.pluginName,
+        "plugin.hook": error.hookName,
+        "error.type": error.error.name,
+        "error.message": error.error.message,
+      },
+    });
+
+    span.recordException(error.error);
+    span.end();
+  },
+});
+```
+
+### Example with Multiple Monitoring Systems
+
+```typescript
+import { createUDSL, PluginError } from "@udsl/core";
+// Example using Sentry for error tracking
+import * as Sentry from "@sentry/node";
+
+function handlePluginError(error: PluginError) {
+  // 1. Log to console for debugging
+  console.error(`[${error.pluginName}] ${error.hookName} failed:`, error.error);
+
+  // 2. Increment metric counter (example using your metrics library)
+  // metrics.increment("udsl.plugin.error", {
+  //   plugin: error.pluginName,
+  //   hook: error.hookName,
+  // });
+
+  // 3. Send to Sentry error tracking
+  Sentry.captureException(error.error, {
+    tags: {
+      plugin: error.pluginName,
+      hook: error.hookName,
+    },
+    extra: {
+      args: error.args,
+      timestamp: error.timestamp,
+    },
+  });
+
+  // 4. Alert if critical plugin fails (example using your alerting system)
+  // if (error.pluginName === "TelemetryPlugin") {
+  //   alerting.trigger("critical", "Telemetry plugin failure detected");
+  // }
+}
+
+const udsl = createUDSL({
+  resources: {
+    /* ... */
+  },
+  onPluginError: handlePluginError,
+});
+```
+
+### PluginError Interface
+
+```typescript
+interface PluginError {
+  /** Name of the plugin that failed (from plugin.name property) */
+  pluginName: string;
+
+  /** Name of the hook that threw the error */
+  hookName: string;
+
+  /** The error that was thrown */
+  error: Error;
+
+  /** Timestamp when the error occurred (milliseconds) */
+  timestamp: number;
+
+  /** Arguments passed to the hook */
+  args: any[];
+}
+```
+
+### Important Notes
+
+- Plugin errors are **non-fatal** - UDSL continues execution even if plugins fail
+- The `onPluginError` handler itself is wrapped in try-catch to prevent cascading failures
+- If a plugin doesn't have a `name` property, it will be reported as `'unknown'`
+- Add the `name` property to your custom plugins for better error tracking:
+
+```typescript
+const myPlugin = {
+  name: "MyCustomPlugin", // Add this for error tracking
+  beforeFetch: async (url, init) => {
+    // Plugin logic
+  },
+};
+```
 
 ## Contributing
 
