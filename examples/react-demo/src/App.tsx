@@ -27,7 +27,7 @@ export default function App() {
           border: "1px solid #4caf50",
           borderRadius: "4px",
         }}>
-        <strong>🔍 Telemetry Active</strong>
+        <strong>Telemetry Active</strong>
         <p style={{ margin: "5px 0 0 0", fontSize: "14px", color: "#555" }}>
           Open your browser's DevTools console to see OpenTelemetry spans being
           traced. Each API call, cache operation, and revalidation creates
