@@ -117,14 +117,13 @@ export class TelemetryPlugin implements UDSLPlugin {
     const attributes = this.spanAttributes.get(span) || {};
     const startTime = this.spanStartTimes.get(span);
     const duration = startTime != undefined ? Date.now() - startTime : 0;
-    const durationDisplay = duration !== undefined ? `${duration}ms` : "N/A";
+    const durationDisplay = `${duration}ms`;
     const style = "color: #4CAF50; font-weight: bold;";
 
     console.groupCollapsed(
       `%c [Telemetry] ${spanName} (${durationDisplay})`,
       style,
     );
-    console.log("Duration:", `${durationDisplay}`);
     console.log("Attributes:", attributes);
     console.log("Service:", this.options.serviceName);
     console.groupEnd();
@@ -170,7 +169,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     // Store span for later use
     this.activeSpans.set(init, span);
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
     this.spanNames.set(span, spanName);
 
     // Inject trace context into headers for distributed tracing
@@ -220,20 +219,18 @@ export class TelemetryPlugin implements UDSLPlugin {
     if (!span) return;
 
     try {
-      // Add response attributes
-      span.setAttributes({
+      const responseAttributes = {
         "http.status_code": response.status,
         "http.status_text": response.statusText,
         "http.response_size": response.headers.get("content-length") || "0",
-      });
+      };
 
-      // Update tracked attributes
+      // Update tracked attributes for logging
       const attrs = this.spanAttributes.get(span) || {};
-      Object.assign(attrs, {
-        "http.status_code": response.status,
-        "http.status_text": response.statusText,
-        "http.response_size": response.headers.get("content-length") || "0",
-      });
+      Object.assign(attrs, responseAttributes);
+
+      // Add response attributes to span
+      span.setAttributes(responseAttributes);
 
       // Add success/error events
       if (response.ok) {

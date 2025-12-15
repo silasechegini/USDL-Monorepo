@@ -9,7 +9,7 @@ export default function App() {
 
   /**
    * Ideally, loading and error will be handled more elegantly.
-   * perhaps, seperated into components. this is just an example component.
+   * perhaps, separated into components. this is just an example component.
    */
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {String(error.message)}</div>;
