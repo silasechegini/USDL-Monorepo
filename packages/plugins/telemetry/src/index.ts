@@ -115,15 +115,16 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     const spanName = this.spanNames.get(span) || "Unknown";
     const attributes = this.spanAttributes.get(span) || {};
-    const startTime = this.spanStartTimes.get(span) || Date.now();
-    const duration = Date.now() - startTime;
+    const startTime = this.spanStartTimes.get(span);
+    const duration = startTime != undefined ? Date.now() - startTime : 0;
+    const durationDisplay = duration !== undefined ? `${duration}ms` : "N/A";
     const style = "color: #4CAF50; font-weight: bold;";
 
     console.groupCollapsed(
-      `%c🔍 [Telemetry] ${spanName} (${duration}ms)`,
+      `%c [Telemetry] ${spanName} (${durationDisplay})`,
       style,
     );
-    console.log("Duration:", `${duration}ms`);
+    console.log("Duration:", `${durationDisplay}`);
     console.log("Attributes:", attributes);
     console.log("Service:", this.options.serviceName);
     console.groupEnd();
@@ -306,15 +307,21 @@ export class TelemetryPlugin implements UDSLPlugin {
     attributes: Record<string, string | number | boolean> = {},
   ): Promise<T> {
     const spanName = this.options.spanNameFormatter(operation, resourceKey);
+    const spanAttributes = {
+      "udsl.operation": operation,
+      "udsl.resource_key": resourceKey,
+      ...this.options.defaultAttributes,
+      ...attributes,
+    };
     const span = this.tracer.startSpan(spanName, {
       kind: SpanKind.INTERNAL,
-      attributes: {
-        "udsl.operation": operation,
-        "udsl.resource_key": resourceKey,
-        ...this.options.defaultAttributes,
-        ...attributes,
-      },
+      attributes: spanAttributes,
     });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanNames.set(span, spanName);
 
     return context.with(trace.setSpan(context.active(), span), async () => {
       try {
@@ -335,6 +342,10 @@ export class TelemetryPlugin implements UDSLPlugin {
         throw error;
       } finally {
         span.end();
+        this.logSpan(span);
+        this.spanStartTimes.delete(span);
+        this.spanAttributes.delete(span);
+        this.spanNames.delete(span);
       }
     });
   }
@@ -352,18 +363,22 @@ export class TelemetryPlugin implements UDSLPlugin {
   traceCacheHit(resourceKey: string, isStale: boolean = false): void {
     if (!this.options.traceCacheOperations) return;
 
-    const span = this.tracer.startSpan(
-      this.options.spanNameFormatter("CACHE_HIT", resourceKey),
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-          "udsl.operation": "cache_hit",
-          "udsl.resource_key": resourceKey,
-          "udsl.cache.is_stale": isStale,
-          ...this.options.defaultAttributes,
-        },
-      },
-    );
+    const spanName = this.options.spanNameFormatter("CACHE_HIT", resourceKey);
+    const spanAttributes = {
+      "udsl.operation": "cache_hit",
+      "udsl.resource_key": resourceKey,
+      "udsl.cache.is_stale": isStale,
+      ...this.options.defaultAttributes,
+    };
+    const span = this.tracer.startSpan(spanName, {
+      kind: SpanKind.INTERNAL,
+      attributes: spanAttributes,
+    });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.hit", {
       "udsl.resource_key": resourceKey,
@@ -372,6 +387,10 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
+    this.logSpan(span);
+    this.spanStartTimes.delete(span);
+    this.spanAttributes.delete(span);
+    this.spanNames.delete(span);
   }
 
   /**
@@ -386,17 +405,21 @@ export class TelemetryPlugin implements UDSLPlugin {
   traceCacheMiss(resourceKey: string): void {
     if (!this.options.traceCacheOperations) return;
 
-    const span = this.tracer.startSpan(
-      this.options.spanNameFormatter("CACHE_MISS", resourceKey),
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-          "udsl.operation": "cache_miss",
-          "udsl.resource_key": resourceKey,
-          ...this.options.defaultAttributes,
-        },
-      },
-    );
+    const spanName = this.options.spanNameFormatter("CACHE_MISS", resourceKey);
+    const spanAttributes = {
+      "udsl.operation": "cache_miss",
+      "udsl.resource_key": resourceKey,
+      ...this.options.defaultAttributes,
+    };
+    const span = this.tracer.startSpan(spanName, {
+      kind: SpanKind.INTERNAL,
+      attributes: spanAttributes,
+    });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.miss", {
       "udsl.resource_key": resourceKey,
@@ -404,6 +427,10 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
+    this.logSpan(span);
+    this.spanStartTimes.delete(span);
+    this.spanAttributes.delete(span);
+    this.spanNames.delete(span);
   }
 
   /**
