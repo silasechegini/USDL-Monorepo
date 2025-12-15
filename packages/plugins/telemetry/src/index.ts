@@ -116,7 +116,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     const spanName = this.spanNames.get(span) || "Unknown";
     const attributes = this.spanAttributes.get(span) || {};
     const startTime = this.spanStartTimes.get(span);
-    const duration = startTime != undefined ? Date.now() - startTime : 0;
+    const duration = startTime !== undefined ? Date.now() - startTime : 0;
     const durationDisplay = `${duration}ms`;
     const style = "color: #4CAF50; font-weight: bold;";
 
@@ -226,8 +226,9 @@ export class TelemetryPlugin implements UDSLPlugin {
       };
 
       // Update tracked attributes for logging
-      const attrs = this.spanAttributes.get(span) || {};
-      Object.assign(attrs, responseAttributes);
+      const oldAttrs = this.spanAttributes.get(span) || {};
+      const newAttrs = { ...oldAttrs, ...responseAttributes };
+      this.spanAttributes.set(span, structuredClone(newAttrs));
 
       // Add response attributes to span
       span.setAttributes(responseAttributes);
@@ -317,7 +318,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
     this.spanNames.set(span, spanName);
 
     return context.with(trace.setSpan(context.active(), span), async () => {
@@ -374,7 +375,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
     this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.hit", {
@@ -415,7 +416,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, { ...spanAttributes });
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
     this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.miss", {
@@ -759,12 +760,14 @@ export async function initializeOpenTelemetry(options: {
   endpoint?: string;
   environment?: string;
 }) {
-  throw new Error(
-    "initializeOpenTelemetry is deprecated and requires Node.js-specific packages. " +
-      "Please install @opentelemetry/sdk-node and related packages manually, " +
+  console.warn(
+    "[DEPRECATED] initializeOpenTelemetry is deprecated and will be removed in a future release. " +
+      "This function is now a no-op. Please install @opentelemetry/sdk-node and related packages manually, " +
       "or use @opentelemetry/sdk-trace-web for browser environments. " +
       "See the documentation for examples.",
   );
+  // No-op
+  return;
 }
 
 export * from "@opentelemetry/api";
