@@ -13,6 +13,17 @@ The UDSL OpenTelemetry Plugin provides comprehensive observability and tracing f
 - 🏷️ **Resource Tagging** - Automatic resource identification and labeling
 - 🔌 **Extensible** - Customize span names, attributes, and tracing behavior
 
+## Browser Compatibility
+
+This plugin is compatible with both Node.js and modern browsers. For browser environments, the following minimum versions are required:
+
+- **Chrome**: 98+ (March 2022)
+- **Firefox**: 94+ (November 2021)
+- **Safari**: 15.4+ (March 2022)
+- **Edge**: 98+ (March 2022)
+
+> **Note**: The plugin uses the `structuredClone` Web API for deep cloning span attributes. If you need to support older browsers, consider using a polyfill like [core-js](https://github.com/zloirock/core-js) or [@ungap/structured-clone](https://www.npmjs.com/package/@ungap/structured-clone).
+
 ## Installation
 
 ```bash

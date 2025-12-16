@@ -178,7 +178,7 @@ export class TelemetryPlugin implements UDSLPlugin {
     // Store span for later use
     this.activeSpans.set(init, span);
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanAttributes.set(span, { ...spanAttributes });
     this.spanNames.set(span, spanName);
 
     // Inject trace context into headers for distributed tracing
@@ -237,7 +237,7 @@ export class TelemetryPlugin implements UDSLPlugin {
       // Update tracked attributes for logging
       const oldAttrs = this.spanAttributes.get(span) || {};
       const newAttrs = { ...oldAttrs, ...responseAttributes };
-      this.spanAttributes.set(span, structuredClone(newAttrs));
+      this.spanAttributes.set(span, { ...newAttrs });
 
       // Add response attributes to span
       span.setAttributes(responseAttributes);
@@ -327,7 +327,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanAttributes.set(span, { ...spanAttributes });
     this.spanNames.set(span, spanName);
 
     return context.with(trace.setSpan(context.active(), span), async () => {
@@ -384,7 +384,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanAttributes.set(span, { ...spanAttributes });
     this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.hit", {
@@ -425,7 +425,7 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     // Track span metadata for logging
     this.spanStartTimes.set(span, Date.now());
-    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanAttributes.set(span, { ...spanAttributes });
     this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.miss", {

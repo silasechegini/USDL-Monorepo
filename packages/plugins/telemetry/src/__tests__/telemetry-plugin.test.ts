@@ -841,4 +841,281 @@ describe("TelemetryPlugin", () => {
       ).toThrow("spanName cannot be empty or whitespace only");
     });
   });
+
+  describe("Console Logging (logSpansToConsole)", () => {
+    let consoleGroupCollapsed: ReturnType<typeof vi.fn>;
+    let consoleLog: ReturnType<typeof vi.fn>;
+    let consoleGroupEnd: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      consoleGroupCollapsed = vi.spyOn(console, "groupCollapsed");
+      consoleLog = vi.spyOn(console, "log");
+      consoleGroupEnd = vi.spyOn(console, "groupEnd");
+    });
+
+    it("should not log spans when logSpansToConsole is false (default)", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: false,
+      });
+
+      const url = "https://api.example.com/users";
+      const init: RequestInit = { method: "GET" };
+      const response = new Response(JSON.stringify([]), {
+        status: 200,
+        statusText: "OK",
+      });
+
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
+
+      expect(consoleGroupCollapsed).not.toHaveBeenCalled();
+      expect(consoleGroupEnd).not.toHaveBeenCalled();
+    });
+
+    it("should not log spans when logSpansToConsole is undefined (default)", async () => {
+      const plugin = createTelemetryPlugin();
+
+      const url = "https://api.example.com/users";
+      const init: RequestInit = { method: "GET" };
+      const response = new Response(JSON.stringify([]), {
+        status: 200,
+        statusText: "OK",
+      });
+
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
+
+      expect(consoleGroupCollapsed).not.toHaveBeenCalled();
+      expect(consoleGroupEnd).not.toHaveBeenCalled();
+    });
+
+    it("should log HTTP fetch spans when logSpansToConsole is true", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        serviceName: "test-service",
+      });
+
+      const url = "https://api.example.com/users";
+      const init: RequestInit = { method: "GET" };
+      const response = new Response(JSON.stringify([]), {
+        status: 200,
+        statusText: "OK",
+      });
+
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
+
+      // Verify console.groupCollapsed was called with span name and duration
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(/\[Telemetry\] HTTP users GET \(\d+ms\)/),
+        expect.any(String),
+      );
+
+      // Verify attributes were logged
+      expect(consoleLog).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          "http.method": "GET",
+          "http.url": url,
+          "http.status_code": 200,
+          "http.status_text": "OK",
+        }),
+      );
+
+      // Verify service name was logged
+      expect(consoleLog).toHaveBeenCalledWith("Service:", "test-service");
+
+      // Verify console group was closed
+      expect(consoleGroupEnd).toHaveBeenCalled();
+    });
+
+    it("should log cache hit spans when logSpansToConsole is true", () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        traceCacheOperations: true,
+        serviceName: "cache-service",
+      });
+
+      plugin.traceCacheHit("user.123", false);
+
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(/\[Telemetry\] CACHE_HIT user\.123 \(\d+ms\)/),
+        expect.any(String),
+      );
+
+      expect(consoleLog).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          "udsl.operation": "cache_hit",
+          "udsl.resource_key": "user.123",
+          "udsl.cache.is_stale": false,
+        }),
+      );
+
+      expect(consoleLog).toHaveBeenCalledWith("Service:", "cache-service");
+      expect(consoleGroupEnd).toHaveBeenCalled();
+    });
+
+    it("should log cache miss spans when logSpansToConsole is true", () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        traceCacheOperations: true,
+      });
+
+      plugin.traceCacheMiss("product.456");
+
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /\[Telemetry\] CACHE_MISS product\.456 \(\d+ms\)/,
+        ),
+        expect.any(String),
+      );
+
+      expect(consoleLog).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          "udsl.operation": "cache_miss",
+          "udsl.resource_key": "product.456",
+        }),
+      );
+
+      expect(consoleGroupEnd).toHaveBeenCalled();
+    });
+
+    it("should log custom operation spans when logSpansToConsole is true", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        serviceName: "custom-service",
+      });
+
+      await plugin.traceOperation(
+        "validate",
+        "order.789",
+        async () => {
+          return { valid: true };
+        },
+        { "order.id": "789" },
+      );
+
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(/\[Telemetry\] validate order\.789 \(\d+ms\)/),
+        expect.any(String),
+      );
+
+      expect(consoleLog).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          "udsl.operation": "validate",
+          "udsl.resource_key": "order.789",
+          "order.id": "789",
+        }),
+      );
+
+      expect(consoleLog).toHaveBeenCalledWith("Service:", "custom-service");
+      expect(consoleGroupEnd).toHaveBeenCalled();
+    });
+
+    it("should handle console without groupCollapsed support (fallback to log)", async () => {
+      // Temporarily remove groupCollapsed to test fallback
+      const originalGroupCollapsed = console.groupCollapsed;
+      const originalGroupEnd = console.groupEnd;
+      // @ts-ignore
+      delete console.groupCollapsed;
+      // @ts-ignore
+      delete console.groupEnd;
+
+      const consoleLogSpy = vi.spyOn(console, "log");
+
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        serviceName: "fallback-service",
+      });
+
+      const url = "https://api.example.com/data";
+      const init: RequestInit = { method: "GET" };
+      const response = new Response(JSON.stringify([]), {
+        status: 200,
+        statusText: "OK",
+      });
+
+      await plugin.beforeFetch!(url, init);
+      await plugin.afterFetch!(url, response, init);
+
+      // Verify fallback to console.log with formatted message
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\[Telemetry\] HTTP data GET \(\d+ms\)/),
+        expect.any(String),
+      );
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          "http.method": "GET",
+          "http.status_code": 200,
+        }),
+      );
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        "Service:",
+        "fallback-service",
+      );
+
+      // Restore console methods
+      console.groupCollapsed = originalGroupCollapsed;
+      console.groupEnd = originalGroupEnd;
+    });
+
+    it("should include custom default attributes in logged spans", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        defaultAttributes: {
+          environment: "production",
+          version: "1.2.3",
+        },
+      });
+
+      plugin.traceCacheHit("user.999", false);
+
+      expect(consoleLog).toHaveBeenCalledWith(
+        "Attributes:",
+        expect.objectContaining({
+          environment: "production",
+          version: "1.2.3",
+          "udsl.operation": "cache_hit",
+          "udsl.resource_key": "user.999",
+        }),
+      );
+    });
+
+    it("should format duration correctly in logged spans", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+      });
+
+      // Use a synchronous operation to minimize timing variability
+      plugin.traceCacheHit("test.timing", false);
+
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(/\(\d+ms\)$/),
+        expect.any(String),
+      );
+    });
+
+    it("should use custom span name formatter in logs", async () => {
+      const plugin = createTelemetryPlugin({
+        logSpansToConsole: true,
+        spanNameFormatter: (operation, resourceKey) =>
+          `CUSTOM:${operation}:${resourceKey}`,
+      });
+
+      plugin.traceCacheHit("formatted.key", false);
+
+      expect(consoleGroupCollapsed).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /\[Telemetry\] CUSTOM:CACHE_HIT:formatted\.key \(\d+ms\)/,
+        ),
+        expect.any(String),
+      );
+    });
+  });
 });
