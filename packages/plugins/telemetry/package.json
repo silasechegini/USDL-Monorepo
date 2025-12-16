@@ -31,7 +31,7 @@
   "peerDependencies": {
     "@opentelemetry/sdk-node": "^0.45.0",
     "@opentelemetry/auto-instrumentations-node": "^0.40.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.45.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^1.18.0",
     "@opentelemetry/resources": "^1.18.0"
   },
   "peerDependenciesMeta": {

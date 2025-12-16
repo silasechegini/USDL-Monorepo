@@ -120,13 +120,22 @@ export class TelemetryPlugin implements UDSLPlugin {
     const durationDisplay = `${duration}ms`;
     const style = "color: #4CAF50; font-weight: bold;";
 
-    console.groupCollapsed(
-      `%c [Telemetry] ${spanName} (${durationDisplay})`,
-      style,
-    );
-    console.log("Attributes:", attributes);
-    console.log("Service:", this.options.serviceName);
-    console.groupEnd();
+    if (
+      typeof console.groupCollapsed === "function" &&
+      typeof console.groupEnd === "function"
+    ) {
+      console.groupCollapsed(
+        `%c [Telemetry] ${spanName} (${durationDisplay})`,
+        style,
+      );
+      console.log("Attributes:", attributes);
+      console.log("Service:", this.options.serviceName);
+      console.groupEnd();
+    } else {
+      console.log(`[Telemetry] ${spanName} (${durationDisplay})`);
+      console.log("Attributes:", attributes);
+      console.log("Service:", this.options.serviceName);
+    }
   }
 
   /**
