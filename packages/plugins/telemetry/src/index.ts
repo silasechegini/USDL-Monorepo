@@ -8,13 +8,6 @@ import {
   type Span,
   SpanOptions,
 } from "@opentelemetry/api";
-import {
-  resourceFromAttributes,
-  defaultResource,
-} from "@opentelemetry/resources";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeSDK, NodeSDKConfiguration } from "@opentelemetry/sdk-node";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 
 export interface TelemetryPluginOptions {
   /** Service name for tracing */
@@ -27,6 +20,11 @@ export interface TelemetryPluginOptions {
   traceCacheOperations?: boolean;
   /** Whether to trace plugin executions */
   tracePluginExecution?: boolean;
+  /**
+   * Log spans to console for debugging (useful when no OpenTelemetry SDK is configured)
+   * @default false
+   */
+  logSpansToConsole?: boolean;
   /**
    * Custom span name formatter
    *
@@ -50,6 +48,7 @@ const DEFAULT_OPTIONS: Required<TelemetryPluginOptions> = {
   defaultAttributes: {},
   traceCacheOperations: true,
   tracePluginExecution: true,
+  logSpansToConsole: false,
   spanNameFormatter: (operation, resourceKey, method) =>
     method
       ? `${operation} ${resourceKey} ${method}`
@@ -96,6 +95,9 @@ export class TelemetryPlugin implements UDSLPlugin {
   private tracer;
   private options: Required<TelemetryPluginOptions>;
   private activeSpans = new WeakMap<object, Span>();
+  private spanStartTimes = new WeakMap<Span, number>();
+  private spanAttributes = new WeakMap<Span, Record<string, any>>();
+  private spanNames = new WeakMap<Span, string>();
 
   constructor(options: TelemetryPluginOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -103,6 +105,37 @@ export class TelemetryPlugin implements UDSLPlugin {
       this.options.serviceName,
       this.options.serviceVersion,
     );
+  }
+
+  /**
+   * Log span information to console if enabled
+   */
+  private logSpan(span: Span) {
+    if (!this.options.logSpansToConsole) return;
+
+    const spanName = this.spanNames.get(span) || "Unknown";
+    const attributes = this.spanAttributes.get(span) || {};
+    const startTime = this.spanStartTimes.get(span);
+    const duration = startTime !== undefined ? Date.now() - startTime : 0;
+    const durationDisplay = `${duration}ms`;
+    const style = "color: #4CAF50; font-weight: bold;";
+
+    if (
+      typeof console.groupCollapsed === "function" &&
+      typeof console.groupEnd === "function"
+    ) {
+      console.groupCollapsed(
+        `%c [Telemetry] ${spanName} (${durationDisplay})`,
+        style,
+      );
+      console.log("Attributes:", attributes);
+      console.log("Service:", this.options.serviceName);
+      console.groupEnd();
+    } else {
+      console.log(`[Telemetry] ${spanName} (${durationDisplay})`);
+      console.log("Attributes:", attributes);
+      console.log("Service:", this.options.serviceName);
+    }
   }
 
   /**
@@ -130,19 +163,23 @@ export class TelemetryPlugin implements UDSLPlugin {
       resourceKey,
       method,
     );
+    const spanAttributes = {
+      "http.method": method,
+      "http.url": url,
+      "udsl.resource_key": resourceKey,
+      "udsl.operation": "fetch",
+      ...this.options.defaultAttributes,
+    };
     const span = this.tracer.startSpan(spanName, {
       kind: SpanKind.CLIENT,
-      attributes: {
-        "http.method": method,
-        "http.url": url,
-        "udsl.resource_key": resourceKey,
-        "udsl.operation": "fetch",
-        ...this.options.defaultAttributes,
-      },
+      attributes: spanAttributes,
     });
 
     // Store span for later use
     this.activeSpans.set(init, span);
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanNames.set(span, spanName);
 
     // Inject trace context into headers for distributed tracing
     const headers = new Headers(init.headers || {});
@@ -191,12 +228,19 @@ export class TelemetryPlugin implements UDSLPlugin {
     if (!span) return;
 
     try {
-      // Add response attributes
-      span.setAttributes({
+      const responseAttributes = {
         "http.status_code": response.status,
         "http.status_text": response.statusText,
         "http.response_size": response.headers.get("content-length") || "0",
-      });
+      };
+
+      // Update tracked attributes for logging
+      const oldAttrs = this.spanAttributes.get(span) || {};
+      const newAttrs = { ...oldAttrs, ...responseAttributes };
+      this.spanAttributes.set(span, structuredClone(newAttrs));
+
+      // Add response attributes to span
+      span.setAttributes(responseAttributes);
 
       // Add success/error events
       if (response.ok) {
@@ -222,7 +266,11 @@ export class TelemetryPlugin implements UDSLPlugin {
       span.recordException(error as Error);
     } finally {
       span.end();
+      this.logSpan(span);
       this.activeSpans.delete(init);
+      this.spanStartTimes.delete(span);
+      this.spanAttributes.delete(span);
+      this.spanNames.delete(span);
     }
   }
 
@@ -266,15 +314,21 @@ export class TelemetryPlugin implements UDSLPlugin {
     attributes: Record<string, string | number | boolean> = {},
   ): Promise<T> {
     const spanName = this.options.spanNameFormatter(operation, resourceKey);
+    const spanAttributes = {
+      "udsl.operation": operation,
+      "udsl.resource_key": resourceKey,
+      ...this.options.defaultAttributes,
+      ...attributes,
+    };
     const span = this.tracer.startSpan(spanName, {
       kind: SpanKind.INTERNAL,
-      attributes: {
-        "udsl.operation": operation,
-        "udsl.resource_key": resourceKey,
-        ...this.options.defaultAttributes,
-        ...attributes,
-      },
+      attributes: spanAttributes,
     });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanNames.set(span, spanName);
 
     return context.with(trace.setSpan(context.active(), span), async () => {
       try {
@@ -295,6 +349,10 @@ export class TelemetryPlugin implements UDSLPlugin {
         throw error;
       } finally {
         span.end();
+        this.logSpan(span);
+        this.spanStartTimes.delete(span);
+        this.spanAttributes.delete(span);
+        this.spanNames.delete(span);
       }
     });
   }
@@ -312,18 +370,22 @@ export class TelemetryPlugin implements UDSLPlugin {
   traceCacheHit(resourceKey: string, isStale: boolean = false): void {
     if (!this.options.traceCacheOperations) return;
 
-    const span = this.tracer.startSpan(
-      this.options.spanNameFormatter("CACHE_HIT", resourceKey),
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-          "udsl.operation": "cache_hit",
-          "udsl.resource_key": resourceKey,
-          "udsl.cache.is_stale": isStale,
-          ...this.options.defaultAttributes,
-        },
-      },
-    );
+    const spanName = this.options.spanNameFormatter("CACHE_HIT", resourceKey);
+    const spanAttributes = {
+      "udsl.operation": "cache_hit",
+      "udsl.resource_key": resourceKey,
+      "udsl.cache.is_stale": isStale,
+      ...this.options.defaultAttributes,
+    };
+    const span = this.tracer.startSpan(spanName, {
+      kind: SpanKind.INTERNAL,
+      attributes: spanAttributes,
+    });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.hit", {
       "udsl.resource_key": resourceKey,
@@ -332,6 +394,10 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
+    this.logSpan(span);
+    this.spanStartTimes.delete(span);
+    this.spanAttributes.delete(span);
+    this.spanNames.delete(span);
   }
 
   /**
@@ -346,17 +412,21 @@ export class TelemetryPlugin implements UDSLPlugin {
   traceCacheMiss(resourceKey: string): void {
     if (!this.options.traceCacheOperations) return;
 
-    const span = this.tracer.startSpan(
-      this.options.spanNameFormatter("CACHE_MISS", resourceKey),
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: {
-          "udsl.operation": "cache_miss",
-          "udsl.resource_key": resourceKey,
-          ...this.options.defaultAttributes,
-        },
-      },
-    );
+    const spanName = this.options.spanNameFormatter("CACHE_MISS", resourceKey);
+    const spanAttributes = {
+      "udsl.operation": "cache_miss",
+      "udsl.resource_key": resourceKey,
+      ...this.options.defaultAttributes,
+    };
+    const span = this.tracer.startSpan(spanName, {
+      kind: SpanKind.INTERNAL,
+      attributes: spanAttributes,
+    });
+
+    // Track span metadata for logging
+    this.spanStartTimes.set(span, Date.now());
+    this.spanAttributes.set(span, structuredClone(spanAttributes));
+    this.spanNames.set(span, spanName);
 
     span.addEvent("udsl.cache.miss", {
       "udsl.resource_key": resourceKey,
@@ -364,6 +434,10 @@ export class TelemetryPlugin implements UDSLPlugin {
 
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
+    this.logSpan(span);
+    this.spanStartTimes.delete(span);
+    this.spanAttributes.delete(span);
+    this.spanNames.delete(span);
   }
 
   /**
@@ -657,7 +731,37 @@ export function createTelemetryPlugin(
 }
 
 /**
- * Helper to initialize OpenTelemetry with common settings
+ * Helper to initialize OpenTelemetry with common settings for Node.js environments
+ *
+ * @deprecated This helper requires Node.js-specific packages (@opentelemetry/sdk-node, etc.)
+ * which are not included by default to support browser environments.
+ *
+ * For Node.js applications, manually install these packages and initialize OpenTelemetry:
+ *
+ * @example
+ * ```typescript
+ * import { NodeSDK } from '@opentelemetry/sdk-node';
+ * import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+ * import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+ * import { resourceFromAttributes, defaultResource } from '@opentelemetry/resources';
+ *
+ * const sdk = new NodeSDK({
+ *   resource: defaultResource().merge(
+ *     resourceFromAttributes({
+ *       'service.name': 'your-service',
+ *       'service.version': '1.0.0',
+ *     })
+ *   ),
+ *   traceExporter: new OTLPTraceExporter({
+ *     url: 'https://your-endpoint.com',
+ *   }),
+ *   instrumentations: [getNodeAutoInstrumentations()],
+ * });
+ *
+ * sdk.start();
+ * ```
+ *
+ * For browser applications, use @opentelemetry/sdk-trace-web instead.
  */
 export async function initializeOpenTelemetry(options: {
   serviceName: string;
@@ -665,38 +769,14 @@ export async function initializeOpenTelemetry(options: {
   endpoint?: string;
   environment?: string;
 }) {
-  /**
-   * This would typically be called at application startup
-   * Although implementation would depend on the specific OpenTelemetry setup,
-   * Here is a simple implementation using NodeSDK, which is common for Node.js apps.
-   */
-
-  const sdkConfig: Partial<NodeSDKConfiguration> | undefined = {
-    resource: defaultResource().merge(
-      resourceFromAttributes({
-        "service.name": options.serviceName,
-        "service.version": options.serviceVersion || "1.0.0",
-        ...(options.environment && {
-          "deployment.environment.name": options.environment,
-        }),
-      }),
-    ),
-    instrumentations: [getNodeAutoInstrumentations()],
-  };
-
-  // Configure exporter if endpoint provided
-  if (options.endpoint) {
-    sdkConfig.traceExporter = new OTLPTraceExporter({
-      url: options.endpoint,
-    });
-  }
-
-  const sdk = new NodeSDK(sdkConfig);
-
-  sdk.start();
-
-  // return an instance of the SDK for potential later shutdown
-  return sdk;
+  console.warn(
+    "[DEPRECATED] initializeOpenTelemetry is deprecated and will be removed in a future release. " +
+      "This function is now a no-op. Please install @opentelemetry/sdk-node and related packages manually, " +
+      "or use @opentelemetry/sdk-trace-web for browser environments. " +
+      "See the documentation for examples.",
+  );
+  // No-op
+  return;
 }
 
 export * from "@opentelemetry/api";

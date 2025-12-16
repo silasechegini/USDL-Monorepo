@@ -2,6 +2,10 @@ import { createUDSL, UDSL } from "@udsl/core";
 import { createAuthPlugin } from "@udsl/plugin-auth";
 import { createTelemetryPlugin } from "@udsl/plugin-telemetry";
 
+// Note: OpenTelemetry browser instrumentation would require @opentelemetry/sdk-trace-web
+// For this demo, the telemetry plugin will still trace operations, but spans won't be exported.
+// In production, you'd configure a browser-compatible exporter.
+
 export function initUDSL(): UDSL {
   // Create UDSL instance first
   const udslInstance = createUDSL({
@@ -57,6 +61,7 @@ export function initUDSL(): UDSL {
     },
     traceCacheOperations: true,
     tracePluginExecution: true,
+    logSpansToConsole: true, // Enable console logging to see spans in DevTools
     spanNameFormatter: (
       operation: string,
       resourceKey: string,
@@ -72,13 +77,12 @@ export function initUDSL(): UDSL {
   // Register the telemetry plugin
   udslInstance.registerPlugin(telemetryPlugin);
 
-
   /**
    * AUTHENTICATION SETUP:
    *
    * The auth plugin adds authentication tokens to your UDSL requests.
    * Below are several practical examples of how to implement token retrieval.
-   * 
+   *
    * PRACTICAL AUTH EXAMPLES:
    *
    * Example 1: Token from localStorage (most common in SPAs)
@@ -181,7 +185,6 @@ export function initUDSL(): UDSL {
   // Register the auth plugin
   udslInstance.registerPlugin(authPlugin);
 
-  
   /**
    * Plugin Order Matters:
    *
